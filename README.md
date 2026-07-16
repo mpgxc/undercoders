@@ -1,72 +1,83 @@
-# A statically generated blog example using Next.js, Markdown, and TypeScript
+# Undercoders
 
-This is the existing [blog-starter](https://github.com/vercel/next.js/tree/canary/examples/blog-starter) plus TypeScript.
+Blog sobre **desenvolvimento de software, arquitetura de sistemas, padrões de
+projeto e inteligência artificial**.
 
-This example showcases Next.js's [Static Generation](https://nextjs.org/docs/app/building-your-application/routing/layouts-and-templates) feature using Markdown files as the data source.
+Engenharia de software sem atalhos — foco nas decisões e nos trade-offs por trás
+do código, não apenas no passo a passo.
 
-The blog posts are stored in `/_posts` as Markdown files with front matter support. Adding a new Markdown file in there will create a new blog post.
+Site estático gerado com **Next.js (App Router)**, **TypeScript**, **Tailwind
+CSS** e conteúdo em **Markdown**.
 
-To create the blog posts we use [`remark`](https://github.com/remarkjs/remark) and [`remark-html`](https://github.com/remarkjs/remark-html) to convert the Markdown files into an HTML string, and then send it down as a prop to the page. The metadata of every post is handled by [`gray-matter`](https://github.com/jonschlinkert/gray-matter) and also sent in props to the page.
-
-## Demo
-
-[https://next-blog-starter.vercel.app/](https://next-blog-starter.vercel.app/)
-
-## Deploy your own
-
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/vercel/next.js/tree/canary/examples/blog-starter&project-name=blog-starter&repository-name=blog-starter)
-
-### Related examples
-
-- [AgilityCMS](/examples/cms-agilitycms)
-- [Builder.io](/examples/cms-builder-io)
-- [ButterCMS](/examples/cms-buttercms)
-- [Contentful](/examples/cms-contentful)
-- [Cosmic](/examples/cms-cosmic)
-- [DatoCMS](/examples/cms-datocms)
-- [DotCMS](/examples/cms-dotcms)
-- [Drupal](/examples/cms-drupal)
-- [Enterspeed](/examples/cms-enterspeed)
-- [Ghost](/examples/cms-ghost)
-- [GraphCMS](/examples/cms-graphcms)
-- [Kontent.ai](/examples/cms-kontent-ai)
-- [MakeSwift](/examples/cms-makeswift)
-- [Payload](/examples/cms-payload)
-- [Plasmic](/examples/cms-plasmic)
-- [Prepr](/examples/cms-prepr)
-- [Prismic](/examples/cms-prismic)
-- [Sanity](/examples/cms-sanity)
-- [Sitecore XM Cloud](/examples/cms-sitecore-xmcloud)
-- [Sitefinity](/examples/cms-sitefinity)
-- [Storyblok](/examples/cms-storyblok)
-- [TakeShape](/examples/cms-takeshape)
-- [Tina](/examples/cms-tina)
-- [Umbraco](/examples/cms-umbraco)
-- [Umbraco heartcore](/examples/cms-umbraco-heartcore)
-- [Webiny](/examples/cms-webiny)
-- [WordPress](/examples/cms-wordpress)
-- [Blog Starter](/examples/blog-starter)
-
-## How to use
-
-Execute [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app) with [npm](https://docs.npmjs.com/cli/init), [Yarn](https://yarnpkg.com/lang/en/docs/cli/create/), or [pnpm](https://pnpm.io) to bootstrap the example:
+## Como rodar
 
 ```bash
-npx create-next-app --example blog-starter blog-starter-app
+npm install
+npm run dev
 ```
 
-```bash
-yarn create next-app --example blog-starter blog-starter-app
+O blog fica disponível em [http://localhost:3000](http://localhost:3000).
+
+Scripts:
+
+- `npm run dev` — ambiente de desenvolvimento (Turbopack)
+- `npm run build` — build de produção estático
+- `npm run start` — sobe o build de produção
+
+## Estrutura
+
+```
+_posts/                # publicações (.md ou .html)
+public/assets/blog/    # capas e avatares
+src/
+├─ app/                # rotas (App Router) e componentes de UI
+│  ├─ page.tsx         # home
+│  ├─ posts/[slug]/    # página de uma publicação
+│  └─ tags/[tag]/      # arquivo por tag
+├─ interfaces/         # tipos (Post, Author)
+└─ lib/                # leitura dos posts, tags e util de Markdown
 ```
 
-```bash
-pnpm create next-app --example blog-starter blog-starter-app
+## Escrevendo uma publicação
+
+Cada arquivo em `_posts/` vira uma publicação. O nome do arquivo (sem extensão)
+é o slug da URL.
+
+### Post em Markdown (`.md`)
+
+Adicione um arquivo com _front matter_:
+
+```markdown
+---
+title: "Título da publicação"
+excerpt: "Resumo curto que aparece nos cards e no SEO."
+coverImage: "/assets/blog/meu-post/cover.svg"
+date: "2026-07-16T12:00:00.000Z"
+author:
+  name: "mpgxc"
+  picture: "/assets/blog/authors/mpgxc.svg"
+ogImage:
+  url: "/assets/blog/meu-post/cover.svg"
+tags:
+  - "Arquitetura de Sistemas"
+  - "Padrões de Projeto"
+---
+
+Conteúdo em Markdown...
 ```
 
-Your blog should be up and running on [http://localhost:3000](http://localhost:3000)! If it doesn't work, post on [GitHub discussions](https://github.com/vercel/next.js/discussions).
+O campo `tags` alimenta as páginas de arquivo em `/tags/<tag>` automaticamente.
 
-Deploy it to the cloud with [Vercel](https://vercel.com/new?utm_source=github&utm_medium=readme&utm_campaign=next-example) ([Documentation](https://nextjs.org/docs/deployment)).
+### Post em HTML rico (`.html`)
 
-# Notes
+Para artigos visuais (diagramas SVG, layout próprio), crie um arquivo `.html`
+com o mesmo _front matter_ no topo, seguido de um **documento HTML completo**.
+Esses posts são renderizados em um _iframe_ isolado, preservando 100% do estilo
+e das fontes originais sem interferir no CSS do blog. Veja
+`_posts/como-eu-penso-arquitetura-e-design-backend.html` como referência.
 
-`blog-starter` uses [Tailwind CSS](https://tailwindcss.com) [(v3.0)](https://tailwindcss.com/blog/tailwindcss-v3).
+## Créditos
+
+Estrutura inicial baseada no
+[blog-starter](https://github.com/vercel/next.js/tree/canary/examples/blog-starter)
+do Next.js.

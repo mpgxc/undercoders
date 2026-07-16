@@ -1,6 +1,7 @@
 import Avatar from "./avatar";
 import CoverImage from "./cover-image";
 import DateFormatter from "./date-formatter";
+import { PostTags } from "./post-tags";
 import { PostTitle } from "@/app/_components/post-title";
 import { type Author } from "@/interfaces/author";
 
@@ -9,9 +10,10 @@ type Props = {
   coverImage: string;
   date: string;
   author: Author;
+  tags?: string[];
 };
 
-export function PostHeader({ title, coverImage, date, author }: Props) {
+export function PostHeader({ title, coverImage, date, author, tags }: Props) {
   return (
     <>
       <PostTitle>{title}</PostTitle>
@@ -28,6 +30,7 @@ export function PostHeader({ title, coverImage, date, author }: Props) {
         <div className="mb-6 text-lg">
           <DateFormatter dateString={date} />
         </div>
+        {tags && tags.length > 0 && <PostTags tags={tags} className="mb-6" />}
       </div>
     </>
   );

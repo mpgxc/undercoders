@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="630" viewBox="0 0 1300 630" role="img" aria-label="Bem-vindo ao Undercoders">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="1300" height="630" fill="url(#bg)"/>
+  <text x="80" y="150" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="24" fill="#34d399">&gt;_ undercoders</text>
+  <text x="76" y="330" font-family="Inter, system-ui, sans-serif" font-size="72" font-weight="800" fill="#f8fafc">Bem-vindo ao</text>
+  <text x="76" y="410" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="72" font-weight="700" fill="#34d399">undercoders</text>
+  <text x="80" y="510" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="24" fill="#64748b">por que este blog existe</text>
+  <rect x="80" y="540" width="120" height="4" fill="#10b981"/>
+</svg>

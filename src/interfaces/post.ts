@@ -1,5 +1,7 @@
 import { type Author } from "./author";
 
+export type PostFormat = "markdown" | "html";
+
 export type Post = {
   slug: string;
   title: string;
@@ -11,5 +13,8 @@ export type Post = {
     url: string;
   };
   content: string;
+  tags: string[];
+  /** How `content` should be rendered: parsed Markdown or a self-contained HTML document. */
+  format: PostFormat;
   preview?: boolean;
 };

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="630" viewBox="0 0 1300 630" role="img" aria-label="Arquitetura e design de backend">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="1300" height="630" fill="url(#bg)"/>
+
+  <!-- concentric rings (Clean Architecture motif) -->
+  <g transform="translate(1010,315)" fill="none" stroke-width="2">
+    <circle r="230" stroke="#1e293b"/>
+    <circle r="170" stroke="#334155"/>
+    <circle r="110" stroke="#0f766e"/>
+    <circle r="55" fill="#10b981" fill-opacity="0.15" stroke="#34d399"/>
+    <text x="0" y="6" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="20" font-weight="600" fill="#34d399" stroke="none">domain</text>
+    <text x="0" y="-135" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="16" fill="#94a3b8" stroke="none">application</text>
+    <text x="0" y="-200" text-anchor="middle" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="16" fill="#64748b" stroke="none">infra · presentation</text>
+  </g>
+
+  <text x="80" y="150" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="24" fill="#34d399">&gt;_ undercoders</text>
+  <text x="80" y="150" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="22" fill="#10b981" opacity="0"> </text>
+  <text x="76" y="300" font-family="Inter, system-ui, sans-serif" font-size="58" font-weight="800" fill="#f8fafc">Como eu penso</text>
+  <text x="76" y="368" font-family="Inter, system-ui, sans-serif" font-size="58" font-weight="800" fill="#f8fafc">arquitetura &amp; design</text>
+  <text x="76" y="436" font-family="Inter, system-ui, sans-serif" font-size="58" font-weight="800" fill="#94a3b8">de backend</text>
+  <text x="80" y="540" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="22" fill="#64748b">Clean Architecture · DDD · Hexagonal · CQS · Saga</text>
+</svg>

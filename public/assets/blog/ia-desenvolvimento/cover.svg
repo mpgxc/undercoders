@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1300" height="630" viewBox="0 0 1300 630" role="img" aria-label="Inteligência artificial no fluxo de desenvolvimento">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+  </defs>
+  <rect width="1300" height="630" fill="url(#bg)"/>
+
+  <!-- neural-ish node motif -->
+  <g transform="translate(1040,315)" stroke="#334155" stroke-width="2">
+    <line x1="-120" y1="-120" x2="0" y2="0"/>
+    <line x1="-120" y1="0" x2="0" y2="0"/>
+    <line x1="-120" y1="120" x2="0" y2="0"/>
+    <line x1="0" y1="0" x2="120" y2="-70"/>
+    <line x1="0" y1="0" x2="120" y2="70"/>
+    <circle cx="-120" cy="-120" r="12" fill="#1e293b" stroke="#475569"/>
+    <circle cx="-120" cy="0" r="12" fill="#1e293b" stroke="#475569"/>
+    <circle cx="-120" cy="120" r="12" fill="#1e293b" stroke="#475569"/>
+    <circle cx="0" cy="0" r="18" fill="#10b981" fill-opacity="0.2" stroke="#34d399"/>
+    <circle cx="120" cy="-70" r="12" fill="#1e293b" stroke="#475569"/>
+    <circle cx="120" cy="70" r="12" fill="#1e293b" stroke="#475569"/>
+  </g>
+
+  <text x="80" y="150" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="24" fill="#34d399">&gt;_ undercoders</text>
+  <text x="76" y="310" font-family="Inter, system-ui, sans-serif" font-size="60" font-weight="800" fill="#f8fafc">IA no fluxo de</text>
+  <text x="76" y="382" font-family="Inter, system-ui, sans-serif" font-size="60" font-weight="800" fill="#94a3b8">desenvolvimento</text>
+  <text x="80" y="500" font-family="'JetBrains Mono', ui-monospace, monospace" font-size="22" fill="#64748b">assistentes, contexto e engenharia de verdade</text>
+</svg>

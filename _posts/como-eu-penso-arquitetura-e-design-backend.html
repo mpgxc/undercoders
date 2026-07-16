@@ -1,0 +1,1717 @@
+---
+title: "Como eu penso arquitetura e design dos meus projetos backend"
+excerpt: "Um passeio visual pela forma como estruturo sistemas backend: Clean Architecture, DDD tático, Ports & Adapters, organização feature-first, CQS, o Result pattern e mensageria confiável com Outbox e Saga — sempre com a regra de dependência apontando para dentro."
+coverImage: "/assets/blog/arquitetura-backend/cover.svg"
+date: "2026-07-16T12:00:00.000Z"
+author:
+  name: "mpgxc"
+  picture: "/assets/blog/authors/mpgxc.svg"
+ogImage:
+  url: "/assets/blog/arquitetura-backend/cover.svg"
+tags:
+  - "Arquitetura de Sistemas"
+  - "Padrões de Projeto"
+  - "Backend"
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deconstructing Clean Architecture</title>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --color-paper:   #f5f5f5;
+      --color-paper-2: #ececec;
+      --color-ink:     #2d3142;
+      --color-muted:   #4f5d75;
+      --color-soft:    #7a8399;
+      --color-accent:  #eb6c36;
+      --color-link:    #2e5aa8;
+      --color-rule:    rgba(45,49,66,0.12);
+      --font-sans:  'Geist', system-ui, sans-serif;
+      --font-serif: 'Instrument Serif', serif;
+      --font-mono:  'Geist Mono', ui-monospace, monospace;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--color-paper);
+      color: var(--color-ink);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 3.5rem 2rem;
+    }
+
+    .frame { max-width: 1180px; width: 100%; }
+
+    .eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.55rem;
+    }
+
+    h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(1.9rem, 3.2vw + 0.75rem, 3rem);
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.08;
+      color: var(--color-ink);
+      margin-bottom: 0.5rem;
+    }
+
+    .subtitle {
+      color: var(--color-muted);
+      font-size: 0.95rem;
+      max-width: 60ch;
+      margin-bottom: 2.5rem;
+    }
+
+    svg { width: 100%; display: block; }
+
+    /* ── Layer summary cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: 1.05fr 1fr 0.95fr 1fr;
+      gap: 1rem;
+      margin-top: 2.75rem;
+    }
+    @media (max-width: 900px) { .cards { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 560px) { .cards { grid-template-columns: 1fr; } }
+
+    .card {
+      background: #fff;
+      border: 1px solid var(--color-rule);
+      border-radius: 6px;
+      padding: 1.1rem 1.2rem 1.25rem;
+    }
+    .card-head {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot--domain { background: #d4b73f; }
+    .dot--app    { background: #d98a94; }
+    .dot--infra  { background: #7fa8cf; }
+    .dot--pres   { background: #4c9f70; }
+    .card-title {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--color-ink);
+    }
+    .card p {
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: var(--color-muted);
+      margin-bottom: 0.85rem;
+    }
+    .tags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+    .tag {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.02em;
+      padding: 0.2rem 0.42rem;
+      border-radius: 4px;
+      border: 1px solid var(--color-rule);
+      color: var(--color-soft);
+      background: var(--color-paper);
+      white-space: nowrap;
+    }
+
+    /* ── Feature flow section ── */
+    .flow-section { margin-top: 3.5rem; }
+    .flow-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 500;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-muted);
+      margin-bottom: 0.4rem;
+    }
+    .flow-title {
+      font-family: var(--font-serif);
+      font-size: clamp(1.4rem, 2vw + 0.6rem, 1.9rem);
+      font-weight: 400;
+      letter-spacing: -0.01em;
+      margin-bottom: 0.4rem;
+    }
+    .flow-sub {
+      color: var(--color-muted);
+      font-size: 0.9rem;
+      max-width: 66ch;
+      margin-bottom: 1.5rem;
+    }
+    .flow-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1.1rem;
+      margin-bottom: 1.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.04em;
+      color: var(--color-soft);
+    }
+    .flow-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
+    .card code {
+      font-family: var(--font-mono);
+      font-size: 0.76em;
+      background: var(--color-paper);
+      border: 1px solid var(--color-rule);
+      border-radius: 3px;
+      padding: 0.05em 0.32em;
+      color: var(--color-ink);
+    }
+    .card em { font-style: italic; }
+
+    /* ── Code blocks ── */
+    .code-section { margin-top: 3.5rem; }
+    .code-grid { display: flex; flex-direction: column; gap: 1.25rem; margin-top: 1.5rem; }
+    .code-block {
+      background: #fbfbfa;
+      border: 1px solid var(--color-rule);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .code-head {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.7rem 1rem;
+      border-bottom: 1px solid var(--color-rule);
+      border-left: 3px solid var(--layer, var(--color-muted));
+    }
+    .code-head .num {
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      color: var(--color-soft);
+      background: var(--color-paper);
+      border: 1px solid var(--color-rule);
+      border-radius: 4px;
+      padding: 0.1rem 0.4rem;
+    }
+    .code-head .layer-name {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-ink);
+    }
+    .code-head .file {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--color-soft);
+      margin-left: auto;
+    }
+    .code-block pre {
+      margin: 0;
+      padding: 1rem 1.15rem;
+      overflow-x: auto;
+      font-family: var(--font-mono);
+      font-size: 0.74rem;
+      line-height: 1.65;
+      color: #3a3f4c;
+    }
+    .code-block code { font-family: var(--font-mono); white-space: pre; }
+    /* token colors — muted editorial palette */
+    .k  { color: #a05a2c; }          /* keyword */
+    .ty { color: #2e6b58; }          /* type */
+    .fn { color: #3b5aa0; }          /* function / method */
+    .st { color: #8a6a1a; }          /* string */
+    .cm { color: #9aa0ac; font-style: italic; } /* comment */
+    .de { color: #a04b6b; }          /* decorator */
+    .nu { color: #8a4c54; }          /* number */
+    .layer--pres  { --layer: #4c9f70; }
+    .layer--app   { --layer: #d98a94; }
+    .layer--dom   { --layer: #d4b73f; }
+    .layer--infra { --layer: #7fa8cf; }
+    .layer--tree  { --layer: #4f5d75; }
+    /* folder tree tokens */
+    .tr-dir  { color: #3b5aa0; font-weight: 500; }
+    .tr-glob { color: #c3c7d0; }
+    .tr-file { color: #3a3f4c; }
+    .tr-port { color: #8a6a1a; }
+    .tr-note { color: #9aa0ac; font-style: italic; }
+
+    footer {
+      margin-top: 2.75rem;
+      padding-top: 1rem;
+      border-top: 1px solid var(--color-rule);
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.04em;
+      color: var(--color-soft);
+    }
+  </style>
+</head>
+<body>
+  <div class="frame">
+    <p class="eyebrow">Architecture · Diagram Design</p>
+    <h1>Deconstructing Clean Architecture</h1>
+    <p class="subtitle">Dependências apontam para dentro: a camada de <strong>Domain</strong> não conhece ninguém, e tudo ao redor depende dela. A borda externa (Presentation / Infrastructure) toca o mundo real.</p>
+
+    <svg viewBox="0 0 1040 660" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Concentric ring diagram of Clean Architecture layers">
+      <defs>
+        <marker id="arrow-green" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#4c9f70"/></marker>
+        <marker id="arrow-pink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#d98a94"/></marker>
+        <marker id="arrow-blue" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#7fa8cf"/></marker>
+        <marker id="arrow-gold" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#c9a94a"/></marker>
+        <clipPath id="ring-outer"><circle cx="520" cy="300" r="252"/></clipPath>
+      </defs>
+
+      <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+      <!-- ══════════ CONCENTRIC RINGS (original palette) ══════════ -->
+      <!-- Outer ring: top green (Presentation) / bottom blue (Infrastructure) -->
+      <g clip-path="url(#ring-outer)">
+        <rect x="268" y="48"  width="504" height="252" fill="#bfe3c6"/>
+        <rect x="268" y="300" width="504" height="252" fill="#bcd8ee"/>
+      </g>
+      <circle cx="520" cy="300" r="252" fill="none" stroke="#2d3142" stroke-width="1.2"/>
+      <!-- Middle ring: pink (Application) -->
+      <circle cx="520" cy="300" r="180" fill="#f4c4c9" stroke="#2d3142" stroke-width="1.2"/>
+      <!-- Core: yellow (Domain) — focal -->
+      <circle cx="520" cy="300" r="94" fill="#f9f0b8" stroke="#2d3142" stroke-width="1.2"/>
+
+      <!-- Ring labels -->
+      <text x="520" y="86"  text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="15" font-weight="600">Presentation</text>
+      <text x="520" y="196" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="15" font-weight="600">Application</text>
+      <text x="520" y="306" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="17" font-weight="600">Domain</text>
+      <text x="520" y="500" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="15" font-weight="600">Infrastructure</text>
+
+      <!-- Boundary-crossing seams: dashed lines from core edge to middle-ring edge -->
+      <line x1="453" y1="233" x2="401" y2="181" stroke="#2d3142" stroke-width="1.6" stroke-dasharray="6,5"/>
+      <line x1="587" y1="233" x2="639" y2="181" stroke="#2d3142" stroke-width="1.6" stroke-dasharray="6,5"/>
+      <line x1="453" y1="367" x2="401" y2="419" stroke="#2d3142" stroke-width="1.6" stroke-dasharray="6,5"/>
+      <line x1="587" y1="367" x2="639" y2="419" stroke="#2d3142" stroke-width="1.6" stroke-dasharray="6,5"/>
+
+      <!-- Seam labels — sit alongside the dashed line, not on it -->
+      <text x="372" y="196" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="500" transform="rotate(-45 372 196)">Endpoints</text>
+      <text x="672" y="196" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="500" transform="rotate(45 672 196)">DI</text>
+      <text x="372" y="408" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="500" transform="rotate(45 372 408)">Commands</text>
+      <text x="672" y="408" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="500" transform="rotate(-45 672 408)">Queries</text>
+      <!-- Sub-zone labels inside outer ring -->
+      <text x="620" y="466" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="500" transform="rotate(55 620 466)">External Services</text>
+      <text x="428" y="452" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="500">DB</text>
+
+      <!-- ══════════ CALLOUT LEADERS (source dot → arrow into card edge) ══════════ -->
+      <!-- Domain → top-left card. Corridor x=286 -->
+      <circle cx="426" cy="300" r="4.5" fill="#c9a94a"/>
+      <path d="M 426 300 H 286 V 132 H 244" fill="none" stroke="#c9a94a" stroke-width="1.4" marker-end="url(#arrow-gold)"/>
+
+      <!-- Application → mid-left card. Shorter run, corridor x=312 to avoid overlapping the gold path -->
+      <circle cx="340" cy="300" r="4.5" fill="#d98a94"/>
+      <path d="M 340 300 H 312 V 340 H 244" fill="none" stroke="#d98a94" stroke-width="1.4" marker-end="url(#arrow-pink)"/>
+
+      <!-- Infrastructure → bottom-left card. Corridor x=286 -->
+      <circle cx="343" cy="452" r="4.5" fill="#7fa8cf"/>
+      <path d="M 343 452 H 286 V 512 H 244" fill="none" stroke="#7fa8cf" stroke-width="1.4" marker-end="url(#arrow-blue)"/>
+
+      <!-- Presentation → bottom-right card. Corridor x=812 -->
+      <circle cx="697" cy="148" r="4.5" fill="#4c9f70"/>
+      <path d="M 697 148 H 812 V 512 H 796" fill="none" stroke="#4c9f70" stroke-width="1.4" marker-end="url(#arrow-green)"/>
+
+      <!-- Card anchor labels (edge targets) -->
+      <rect x="64" y="116" width="180" height="32" rx="6" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+      <text x="154" y="136" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">DOMAIN</text>
+
+      <rect x="64" y="324" width="180" height="32" rx="6" fill="#f4c4c9" stroke="#2d3142" stroke-width="1"/>
+      <text x="154" y="344" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">APPLICATION</text>
+
+      <rect x="64" y="496" width="180" height="32" rx="6" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+      <text x="154" y="516" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">INFRASTRUCTURE</text>
+
+      <rect x="796" y="496" width="180" height="32" rx="6" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+      <text x="886" y="516" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">PRESENTATION</text>
+    </svg>
+
+    <!-- ══════════ LAYER SUMMARY CARDS ══════════ -->
+    <div class="cards">
+      <div class="card">
+        <div class="card-head"><span class="dot dot--domain"></span><span class="card-title">Domain</span></div>
+        <p>Regras de negócio centrais e lógica corporativa. Não depende de nenhuma outra camada.</p>
+        <div class="tags">
+          <span class="tag">entities</span>
+          <span class="tag">value objects</span>
+          <span class="tag">exceptions</span>
+          <span class="tag">domain events</span>
+          <span class="tag">enums</span>
+          <span class="tag">repositories</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="dot dot--app"></span><span class="card-title">Application</span></div>
+        <p>Casos de uso da aplicação. Orquestra o domínio para executar fluxos.</p>
+        <div class="tags">
+          <span class="tag">use cases</span>
+          <span class="tag">app services</span>
+          <span class="tag">commands</span>
+          <span class="tag">queries</span>
+          <span class="tag">external interfaces</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="dot dot--infra"></span><span class="card-title">Infrastructure</span></div>
+        <p>Tudo relacionado a preocupações externas e integrações concretas.</p>
+        <div class="tags">
+          <span class="tag">databases</span>
+          <span class="tag">identity providers</span>
+          <span class="tag">http clients</span>
+          <span class="tag">cloud storage</span>
+          <span class="tag">email</span>
+          <span class="tag">message brokers</span>
+          <span class="tag">repository impl.</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head"><span class="dot dot--pres"></span><span class="card-title">Presentation</span></div>
+        <p>Ponto de entrada do sistema. Atua como composition root para DI.</p>
+        <div class="tags">
+          <span class="tag">api endpoints</span>
+          <span class="tag">services (DI)</span>
+          <span class="tag">gRPC</span>
+          <span class="tag">graphql</span>
+          <span class="tag">ASP.NET</span>
+          <span class="tag">middleware</span>
+          <span class="tag">exceptions</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════ FEATURE FLOW SECTION ══════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Feature Flow · Request Lifecycle</p>
+      <h2 class="flow-title">Fluxo completo de uma feature: <em>Create Payment</em></h2>
+      <p class="flow-sub">Como as camadas interagem numa requisição real. O request entra pela borda (Presentation), desce até o Domain via casos de uso, e toda I/O externa é acessada por <strong>ports</strong> (abstract classes no Domain/Application, que servem de token de DI) implementados por <strong>adapters</strong> na Infrastructure — a Dependency Rule nunca é violada.</p>
+
+      <div class="flow-legend">
+        <span><svg width="26" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#2d3142" stroke-width="1.6"/><polygon points="20,1 26,4 20,7" fill="#2d3142"/></svg>fluxo de chamada (entrada)</span>
+        <span><svg width="26" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#7fa8cf" stroke-width="1.6" stroke-dasharray="5,4"/><polygon points="20,1 26,4 20,7" fill="#7fa8cf"/></svg>retorno / dados</span>
+        <span><svg width="26" height="8"><line x1="0" y1="4" x2="20" y2="4" stroke="#c9a94a" stroke-width="1.6" stroke-dasharray="2,4"/></svg>port → adapter (DI)</span>
+      </div>
+
+      <svg viewBox="0 0 1040 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Create Payment feature flow across Clean Architecture layers">
+        <defs>
+          <marker id="f-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="f-blue" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#7fa8cf"/></marker>
+        </defs>
+
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- Layer bands (background lanes) -->
+        <rect x="16"  y="60" width="236" height="356" rx="8" fill="#bfe3c6" opacity="0.28"/>
+        <rect x="268" y="60" width="236" height="356" rx="8" fill="#f4c4c9" opacity="0.30"/>
+        <rect x="520" y="60" width="236" height="356" rx="8" fill="#f9f0b8" opacity="0.45"/>
+        <rect x="772" y="60" width="252" height="356" rx="8" fill="#bcd8ee" opacity="0.32"/>
+
+        <!-- Lane headers -->
+        <text x="134" y="46" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">PRESENTATION</text>
+        <text x="386" y="46" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">APPLICATION</text>
+        <text x="638" y="46" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">DOMAIN</text>
+        <text x="898" y="46" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">INFRASTRUCTURE</text>
+
+        <!-- ── ARROWS (drawn before boxes) ── -->
+        <!-- 1: Client → Controller -->
+        <line x1="134" y1="120" x2="134" y2="152" stroke="#2d3142" stroke-width="1.4" marker-end="url(#f-ink)"/>
+        <!-- 2: Controller → UseCase (horizontal) -->
+        <line x1="212" y1="188" x2="308" y2="188" stroke="#2d3142" stroke-width="1.4" marker-end="url(#f-ink)"/>
+        <!-- 3: UseCase → Domain (horizontal) -->
+        <line x1="464" y1="188" x2="560" y2="188" stroke="#2d3142" stroke-width="1.4" marker-end="url(#f-ink)"/>
+        <!-- 4: UseCase → Repository Port (down within Application) -->
+        <line x1="386" y1="224" x2="386" y2="292" stroke="#2d3142" stroke-width="1.4" marker-end="url(#f-ink)"/>
+        <!-- 5: Port ⟶ Adapter (DI dashed gold, horizontal) -->
+        <line x1="464" y1="326" x2="808" y2="326" stroke="#c9a94a" stroke-width="1.6" stroke-dasharray="2,4"/>
+        <polygon points="808,322 816,326 808,330" fill="#c9a94a"/>
+        <!-- 6: Adapter → external (down) -->
+        <line x1="898" y1="364" x2="898" y2="386" stroke="#2d3142" stroke-width="1.4" marker-end="url(#f-ink)"/>
+        <!-- 7: Adapter → Port return (dashed blue, back left) -->
+        <line x1="816" y1="344" x2="466" y2="344" stroke="#7fa8cf" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#f-blue)"/>
+        <!-- 8: Domain result → UseCase (dashed blue back) -->
+        <line x1="560" y1="206" x2="466" y2="206" stroke="#7fa8cf" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#f-blue)"/>
+        <!-- 9: UseCase → Controller (dashed blue back) -->
+        <line x1="308" y1="206" x2="214" y2="206" stroke="#7fa8cf" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#f-blue)"/>
+        <!-- 10: Controller → Client 201 (dashed blue up) -->
+        <line x1="120" y1="152" x2="120" y2="122" stroke="#7fa8cf" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#f-blue)"/>
+
+        <!-- ── BOXES ── -->
+        <!-- Client -->
+        <rect x="56" y="88" width="156" height="32" rx="6" fill="#f5f5f5"/>
+        <rect x="56" y="88" width="156" height="32" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1"/>
+        <text x="134" y="108" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="9.5">POST /payments</text>
+
+        <!-- Controller -->
+        <rect x="56" y="152" width="156" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="56" y="152" width="156" height="56" rx="6" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="134" y="176" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">PaymentsController</text>
+        <text x="134" y="194" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8.5">valida DTO · mapeia</text>
+
+        <!-- UseCase -->
+        <rect x="308" y="152" width="156" height="72" rx="6" fill="#f5f5f5"/>
+        <rect x="308" y="152" width="156" height="72" rx="6" fill="#f4c4c9" stroke="#2d3142" stroke-width="1"/>
+        <text x="386" y="176" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">CreatePayment</text>
+        <text x="386" y="192" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">UseCase</text>
+        <text x="386" y="212" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8.5">orquestra o domínio</text>
+
+        <!-- Repository Port (in Application, interface) -->
+        <rect x="308" y="292" width="156" height="56" rx="6" fill="#f5f5f5"/>
+        <rect x="308" y="292" width="156" height="56" rx="6" fill="#ffffff" stroke="#c9a94a" stroke-width="1.4" stroke-dasharray="4,3"/>
+        <text x="386" y="315" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">PaymentRepository</text>
+        <text x="386" y="333" text-anchor="middle" fill="#8a6a1a" font-family="'Geist Mono',monospace" font-size="8.5">«port» abstract class</text>
+
+        <!-- Domain -->
+        <rect x="560" y="152" width="156" height="72" rx="6" fill="#f5f5f5"/>
+        <rect x="560" y="152" width="156" height="72" rx="6" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="638" y="176" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">Payment</text>
+        <text x="638" y="194" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8.5">entity · value objects</text>
+        <text x="638" y="210" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8.5">regras + invariantes</text>
+
+        <!-- Adapter -->
+        <rect x="816" y="292" width="168" height="72" rx="6" fill="#f5f5f5"/>
+        <rect x="816" y="292" width="168" height="72" rx="6" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="900" y="316" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">TypeOrmPayment</text>
+        <text x="900" y="332" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">Repository</text>
+        <text x="900" y="352" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8.5">«adapter» implements</text>
+
+        <!-- External systems -->
+        <rect x="816" y="386" width="168" height="30" rx="6" fill="#f5f5f5"/>
+        <rect x="816" y="386" width="168" height="30" rx="6" fill="#ffffff" stroke="#4f5d75" stroke-width="1" stroke-dasharray="4,3"/>
+        <text x="900" y="405" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="9">Postgres · Celcoin</text>
+
+        <!-- Step badges -->
+        <g font-family="'Geist Mono',monospace" font-size="9" font-weight="500">
+          <circle cx="148" cy="136" r="9" fill="#2d3142"/><text x="148" y="139" text-anchor="middle" fill="#f5f5f5">1</text>
+          <circle cx="260" cy="176" r="9" fill="#2d3142"/><text x="260" y="179" text-anchor="middle" fill="#f5f5f5">2</text>
+          <circle cx="512" cy="176" r="9" fill="#2d3142"/><text x="512" y="179" text-anchor="middle" fill="#f5f5f5">3</text>
+          <circle cx="402" cy="258" r="9" fill="#2d3142"/><text x="402" y="261" text-anchor="middle" fill="#f5f5f5">4</text>
+          <circle cx="636" cy="312" r="9" fill="#c9a94a"/><text x="636" y="315" text-anchor="middle" fill="#2d3142">5</text>
+          <circle cx="914" cy="376" r="9" fill="#2d3142"/><text x="914" y="379" text-anchor="middle" fill="#f5f5f5">6</text>
+          <circle cx="636" cy="332" r="9" fill="#7fa8cf"/><text x="636" y="335" text-anchor="middle" fill="#2d3142">7</text>
+        </g>
+      </svg>
+
+      <div class="cards" style="grid-template-columns: 1fr 1fr; margin-top: 2rem;">
+        <div class="card">
+          <div class="card-head"><span class="dot dot--pres"></span><span class="card-title">Entrada · passos 1–4</span></div>
+          <p><strong>1.</strong> Client faz <code>POST /payments</code>. <strong>2.</strong> O <em>Controller</em> valida o DTO e chama o caso de uso. <strong>3.</strong> O <em>UseCase</em> instancia a entidade <em>Payment</em>, que aplica as regras de negócio e invariantes. <strong>4.</strong> Para persistir, o UseCase depende do <em>port</em> <code>PaymentRepository</code> — uma abstract class que atua como token de DI, não a implementação.</p>
+        </div>
+        <div class="card">
+          <div class="card-head"><span class="dot dot--infra"></span><span class="card-title">Saída · passos 5–7 + retorno</span></div>
+          <p><strong>5.</strong> Via DI, o port é resolvido para o <em>adapter</em> <code>TypeOrmPaymentRepository</code> na Infrastructure. <strong>6.</strong> O adapter fala com Postgres/Celcoin. <strong>7.</strong> O resultado sobe pelo port de volta ao UseCase, que retorna ao Controller e responde <code>201 Created</code>. A seta pontilhada nunca inverte a Dependency Rule: o Domain só conhece a abstract class.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ══════════ CODE SECTION ══════════ -->
+    <section class="code-section">
+      <p class="flow-eyebrow">Implementation · NestJS + TypeScript</p>
+      <h2 class="flow-title">O mesmo fluxo, em código</h2>
+      <p class="flow-sub">Cada bloco corresponde a uma camada do fluxo acima. Layout <em>feature-first</em>, convenção <code>Result&lt;T, E&gt;</code> com <code>BusinessError</code> semântico, e o port definido na Application implementado por um adapter na Infrastructure — a dependência aponta sempre para dentro.</p>
+
+      <div class="code-grid">
+
+        <!-- 1 · Presentation -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Presentation</span><span class="file">payments.controller.ts</span></div>
+<pre><code><span class="de">@Controller</span>(<span class="st">'payments'</span>)
+<span class="k">export class</span> <span class="ty">PaymentsController</span> {
+  <span class="k">constructor</span>(<span class="k">private readonly</span> createPayment: <span class="ty">CreatePaymentUseCase</span>) {}
+
+  <span class="de">@Post</span>()
+  <span class="k">async</span> <span class="fn">handle</span>(<span class="de">@Body</span>() dto: <span class="ty">CreatePaymentDto</span>) {
+    <span class="k">const</span> result = <span class="k">await</span> <span class="k">this</span>.createPayment.<span class="fn">execute</span>({
+      amount: dto.amount,
+      payerId: dto.payerId,
+      method: dto.method,
+    });
+
+    <span class="cm">// Result é um discriminated union — sem throw no caminho feliz</span>
+    <span class="k">if</span> (result.isErr) <span class="k">return</span> <span class="fn">toHttp</span>(result.error);
+    <span class="k">return</span> { id: result.value.id, status: result.value.status };
+  }
+}</code></pre>
+        </div>
+
+        <!-- 2 · Application -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Application</span><span class="file">create-payment.use-case.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">CreatePaymentUseCase</span> {
+  <span class="k">constructor</span>(
+    <span class="cm">// depende da abstract class (token de DIP), nunca do adapter concreto</span>
+    <span class="k">private readonly</span> repository: <span class="ty">PaymentRepository</span>,
+  ) {}
+
+  <span class="k">async</span> <span class="fn">execute</span>(
+    input: <span class="ty">CreatePaymentInput</span>,
+  ): <span class="ty">Promise</span>&lt;<span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt;&gt; {
+    <span class="cm">// Domain aplica as invariantes na criação</span>
+    <span class="k">const</span> payment = <span class="ty">Payment</span>.<span class="fn">create</span>(input);
+    <span class="k">if</span> (payment.isErr) <span class="k">return</span> payment;
+
+    <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(payment.value);
+    <span class="k">return</span> <span class="fn">ok</span>(payment.value);
+  }
+}</code></pre>
+        </div>
+
+        <!-- 3 · Domain (entity + port) -->
+        <div class="code-block layer--dom">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Domain</span><span class="file">payment.entity.ts · payment.repository.ts</span></div>
+<pre><code><span class="cm">// ── Entity: regras de negócio + invariantes ──</span>
+<span class="k">export class</span> <span class="ty">Payment</span> {
+  <span class="k">private constructor</span>(
+    <span class="k">readonly</span> id: <span class="ty">string</span>,
+    <span class="k">readonly</span> amount: <span class="ty">Money</span>,
+    <span class="k">readonly</span> status: <span class="ty">PaymentStatus</span>,
+  ) {}
+
+  <span class="k">static</span> <span class="fn">create</span>(
+    input: <span class="ty">CreatePaymentInput</span>,
+  ): <span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt; {
+    <span class="k">if</span> (input.amount &lt;= <span class="nu">0</span>) {
+      <span class="k">return</span> <span class="fn">err</span>({ type: <span class="st">'INVALID_AMOUNT'</span>, message: <span class="st">'amount must be &gt; 0'</span> });
+    }
+    <span class="k">return</span> <span class="fn">ok</span>(
+      <span class="k">new</span> <span class="ty">Payment</span>(<span class="fn">randomUUID</span>(), <span class="ty">Money</span>.<span class="fn">of</span>(input.amount), <span class="st">'PROCESSING'</span>),
+    );
+  }
+}
+
+<span class="cm">// ── Port: abstract class serve como token de DIP (existe em runtime) ──</span>
+<span class="k">export abstract class</span> <span class="ty">PaymentRepository</span> {
+  <span class="k">abstract</span> <span class="fn">save</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt;;
+}</code></pre>
+        </div>
+
+        <!-- 4 · Infrastructure (adapter) -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">4</span><span class="layer-name">Infrastructure</span><span class="file">typeorm-payment.repository.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">TypeOrmPaymentRepository</span> <span class="k">implements</span> <span class="ty">PaymentRepository</span> {
+  <span class="k">constructor</span>(
+    <span class="de">@InjectRepository</span>(<span class="ty">PaymentModel</span>)
+    <span class="k">private readonly</span> repo: <span class="ty">Repository</span>&lt;<span class="ty">PaymentModel</span>&gt;,
+  ) {}
+
+  <span class="k">async</span> <span class="fn">save</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="cm">// mapeia a entidade de domínio → modelo de persistência</span>
+    <span class="k">await</span> <span class="k">this</span>.repo.<span class="fn">save</span>({
+      id: payment.id,
+      amount: payment.amount.<span class="fn">toCents</span>(),
+      status: payment.status,
+    });
+  }
+}</code></pre>
+        </div>
+
+        <!-- 5 · Composition root -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">5</span><span class="layer-name">Composition Root</span><span class="file">payments.module.ts</span></div>
+<pre><code><span class="de">@Module</span>({
+  imports: [<span class="ty">TypeOrmModule</span>.<span class="fn">forFeature</span>([<span class="ty">PaymentModel</span>])],
+  controllers: [<span class="ty">PaymentsController</span>],
+  providers: [
+    <span class="ty">CreatePaymentUseCase</span>,
+    <span class="cm">// port → adapter: a abstract class é o próprio token de DI</span>
+    { provide: <span class="ty">PaymentRepository</span>, useClass: <span class="ty">TypeOrmPaymentRepository</span> },
+  ],
+})
+<span class="k">export class</span> <span class="ty">PaymentsModule</span> {}</code></pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════ DDD VIEW ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Tactical Design · Domain-Driven Design</p>
+      <h2 class="flow-title">Visão DDD: <em>Aggregates, Events &amp; Bounded Contexts</em></h2>
+      <p class="flow-sub">A mesma feature vista pela lente do DDD tático. O <strong>Aggregate Root</strong> é a fronteira de consistência: protege invariantes, referencia outros agregados só por <em>id</em>, e comunica mudanças por <strong>domain events</strong>. Cada <strong>bounded context</strong> tem seu próprio modelo — o que é <em>Payment</em> aqui não é o mesmo <em>Payment</em> em Ledger.</p>
+
+      <svg viewBox="0 0 1040 430" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="DDD tactical diagram: aggregate, entities, value objects, domain events, bounded contexts">
+        <defs>
+          <marker id="d-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="d-coral" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#d98a94"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- Bounded Context: Payments (expanded) -->
+        <rect x="24" y="40" width="600" height="366" rx="12" fill="#f9f0b8" opacity="0.30" stroke="#c9a94a" stroke-width="1.4" stroke-dasharray="7,5"/>
+        <text x="44" y="66" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.1em">BOUNDED CONTEXT · PAYMENTS</text>
+
+        <!-- Aggregate boundary -->
+        <rect x="52" y="86" width="360" height="230" rx="10" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="72" y="110" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="9" font-weight="600" letter-spacing="0.08em">AGGREGATE</text>
+
+        <!-- Aggregate Root -->
+        <rect x="72" y="122" width="150" height="58" rx="8" fill="#f4c4c9" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="147" y="146" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">Payment</text>
+        <text x="147" y="164" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">«aggregate root»</text>
+
+        <!-- Entity -->
+        <rect x="242" y="122" width="150" height="58" rx="8" fill="#fdeef0" stroke="#2d3142" stroke-width="1"/>
+        <text x="317" y="146" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">Installment</text>
+        <text x="317" y="164" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">«entity»</text>
+
+        <!-- Value Objects -->
+        <rect x="72" y="200" width="105" height="48" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="124" y="222" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Money</text>
+        <text x="124" y="238" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">«value object»</text>
+
+        <rect x="192" y="200" width="105" height="48" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="244" y="222" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">PixKey</text>
+        <text x="244" y="238" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">«value object»</text>
+
+        <!-- Domain Event (emitted) -->
+        <rect x="72" y="264" width="320" height="38" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="232" y="288" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">PaymentCreated  «domain event»</text>
+
+        <!-- Repository (port to persist aggregate) -->
+        <rect x="452" y="122" width="150" height="58" rx="8" fill="#ffffff" stroke="#c9a94a" stroke-width="1.4" stroke-dasharray="4,3"/>
+        <text x="527" y="146" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">PaymentRepository</text>
+        <text x="527" y="164" text-anchor="middle" fill="#8a6a1a" font-family="'Geist Mono',monospace" font-size="8">«port» abstract</text>
+
+        <!-- Domain Service -->
+        <rect x="452" y="200" width="150" height="58" rx="8" fill="#f4c4c9" stroke="#2d3142" stroke-width="1"/>
+        <text x="527" y="224" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">FeeCalculator</text>
+        <text x="527" y="242" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">«domain service»</text>
+
+        <!-- arrows inside aggregate -->
+        <line x1="222" y1="151" x2="242" y2="151" stroke="#2d3142" stroke-width="1.2" marker-end="url(#d-ink)"/>
+        <line x1="147" y1="180" x2="124" y2="200" stroke="#2d3142" stroke-width="1.1" marker-end="url(#d-ink)"/>
+        <line x1="150" y1="180" x2="230" y2="200" stroke="#2d3142" stroke-width="1.1" marker-end="url(#d-ink)"/>
+        <!-- root emits event -->
+        <line x1="147" y1="180" x2="160" y2="264" stroke="#d98a94" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#d-coral)"/>
+        <text x="176" y="228" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8" transform="rotate(90 176 228)">emits</text>
+        <!-- root ↔ repository -->
+        <line x1="412" y1="151" x2="452" y2="151" stroke="#c9a94a" stroke-width="1.4" stroke-dasharray="2,4"/>
+        <polygon points="446,147 454,151 446,155" fill="#c9a94a"/>
+
+        <!-- Other bounded contexts (collapsed) -->
+        <rect x="656" y="86" width="360" height="86" rx="12" fill="#bcd8ee" opacity="0.28" stroke="#7fa8cf" stroke-width="1.2" stroke-dasharray="7,5"/>
+        <text x="676" y="112" fill="#33506b" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">CONTEXT · LEDGER</text>
+        <text x="676" y="136" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11">modelo próprio de «Account», «Entry»</text>
+        <text x="676" y="154" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8.5">reage a PaymentCreated</text>
+
+        <rect x="656" y="196" width="360" height="86" rx="12" fill="#bfe3c6" opacity="0.30" stroke="#4c9f70" stroke-width="1.2" stroke-dasharray="7,5"/>
+        <text x="676" y="222" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">CONTEXT · NOTIFICATIONS</text>
+        <text x="676" y="246" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11">envia recibo ao pagador</text>
+        <text x="676" y="264" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8.5">reage a PaymentCreated</text>
+
+        <!-- event bus: event → broker line (below aggregate) → other contexts -->
+        <circle cx="232" cy="302" r="4" fill="#d98a94"/>
+        <path d="M 232 302 V 356" fill="none" stroke="#d98a94" stroke-width="1.4" stroke-dasharray="5,4"/>
+        <line x1="232" y1="356" x2="636" y2="356" stroke="#d98a94" stroke-width="1.4" stroke-dasharray="5,4"/>
+        <path d="M 636 356 V 129 H 654" fill="none" stroke="#d98a94" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#d-coral)"/>
+        <path d="M 622 356 V 239 H 654" fill="none" stroke="#d98a94" stroke-width="1.4" stroke-dasharray="5,4" marker-end="url(#d-coral)"/>
+        <text x="400" y="350" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8.5">integration event · broker (SQS/SNS)</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- DDD 1 · Aggregate Root -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Aggregate Root</span><span class="file">payment.aggregate.ts</span></div>
+<pre><code><span class="k">export class</span> <span class="ty">Payment</span> <span class="k">extends</span> <span class="ty">AggregateRoot</span> {
+  <span class="k">private</span> _status: <span class="ty">PaymentStatus</span> = <span class="st">'PROCESSING'</span>;
+
+  <span class="k">private constructor</span>(
+    <span class="k">readonly</span> id: <span class="ty">PaymentId</span>,
+    <span class="k">private readonly</span> amount: <span class="ty">Money</span>,      <span class="cm">// value object</span>
+    <span class="k">private readonly</span> pixKey: <span class="ty">PixKey</span>,     <span class="cm">// value object</span>
+  ) { <span class="k">super</span>(); }
+
+  <span class="cm">// fábrica protege as invariantes do agregado</span>
+  <span class="k">static</span> <span class="fn">create</span>(input: <span class="ty">CreatePaymentInput</span>): <span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt; {
+    <span class="k">const</span> amount = <span class="ty">Money</span>.<span class="fn">of</span>(input.amount);
+    <span class="k">if</span> (amount.isErr) <span class="k">return</span> amount;
+
+    <span class="k">const</span> payment = <span class="k">new</span> <span class="ty">Payment</span>(<span class="ty">PaymentId</span>.<span class="fn">next</span>(), amount.value, input.pixKey);
+
+    <span class="cm">// registra o evento de domínio — publicado após o commit</span>
+    payment.<span class="fn">apply</span>(<span class="k">new</span> <span class="ty">PaymentCreated</span>(payment.id, amount.value));
+    <span class="k">return</span> <span class="fn">ok</span>(payment);
+  }
+}</code></pre>
+        </div>
+
+        <!-- DDD 2 · Value Object -->
+        <div class="code-block layer--dom">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Value Object</span><span class="file">money.vo.ts</span></div>
+<pre><code><span class="cm">// imutável, sem identidade, validado na construção</span>
+<span class="k">export class</span> <span class="ty">Money</span> {
+  <span class="k">private constructor</span>(<span class="k">readonly</span> cents: <span class="ty">number</span>) {}
+
+  <span class="k">static</span> <span class="fn">of</span>(value: <span class="ty">number</span>): <span class="ty">Result</span>&lt;<span class="ty">Money</span>, <span class="ty">BusinessError</span>&gt; {
+    <span class="k">if</span> (!<span class="ty">Number</span>.<span class="fn">isInteger</span>(value) || value &lt;= <span class="nu">0</span>) {
+      <span class="k">return</span> <span class="fn">err</span>({ type: <span class="st">'INVALID_AMOUNT'</span>, message: <span class="st">'amount inválido'</span> });
+    }
+    <span class="k">return</span> <span class="fn">ok</span>(<span class="k">new</span> <span class="ty">Money</span>(value));
+  }
+
+  <span class="fn">equals</span>(other: <span class="ty">Money</span>): <span class="ty">boolean</span> { <span class="k">return</span> <span class="k">this</span>.cents === other.cents; }
+  <span class="fn">toCents</span>(): <span class="ty">number</span> { <span class="k">return</span> <span class="k">this</span>.cents; }
+}</code></pre>
+        </div>
+
+        <!-- DDD 3 · Domain Event Handler -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Domain Event Handler</span><span class="file">on-payment-created.handler.ts</span></div>
+<pre><code><span class="de">@EventsHandler</span>(<span class="ty">PaymentCreated</span>)
+<span class="k">export class</span> <span class="ty">OnPaymentCreated</span> <span class="k">implements</span> <span class="ty">IEventHandler</span>&lt;<span class="ty">PaymentCreated</span>&gt; {
+  <span class="k">constructor</span>(<span class="k">private readonly</span> outbox: <span class="ty">OutboxPort</span>) {}
+
+  <span class="k">async</span> <span class="fn">handle</span>(event: <span class="ty">PaymentCreated</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="cm">// Transactional Outbox: grava o integration event p/ outros contextos</span>
+    <span class="k">await</span> <span class="k">this</span>.outbox.<span class="fn">enqueue</span>({
+      type: <span class="st">'payment.created'</span>,
+      aggregateId: event.paymentId.<span class="fn">toString</span>(),
+      payload: { amountCents: event.amount.<span class="fn">toCents</span>() },
+    });
+  }
+}</code></pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════ HEXAGONAL VIEW ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Ports &amp; Adapters · Hexagonal Architecture</p>
+      <h2 class="flow-title">Visão Hexagonal: <em>Driving &amp; Driven</em></h2>
+      <p class="flow-sub">O núcleo (domínio + aplicação) fica isolado no centro. Tudo que <em>aciona</em> a aplicação entra pela esquerda por <strong>driving ports</strong> (primary/input); tudo que a aplicação <em>aciona</em> sai pela direita por <strong>driven ports</strong> (secondary/output). Os adapters ficam do lado de fora — trocar REST por gRPC, ou Postgres por outro banco, não toca o núcleo.</p>
+
+      <svg viewBox="0 0 1040 440" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hexagonal architecture: driving adapters, ports, core, driven adapters">
+        <defs>
+          <marker id="h-in" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#4c9f70"/></marker>
+          <marker id="h-out" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#7fa8cf"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- Section labels -->
+        <text x="150" y="34" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">DRIVING SIDE</text>
+        <text x="520" y="34" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">APPLICATION CORE</text>
+        <text x="890" y="34" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">DRIVEN SIDE</text>
+
+        <!-- Hexagon core -->
+        <polygon points="520,70 690,170 690,330 520,430 350,330 350,170" fill="#f4c4c9" opacity="0.55" stroke="#2d3142" stroke-width="1.4"/>
+        <polygon points="520,116 650,192 650,308 520,384 390,308 390,192" fill="#f9f0b8" opacity="0.75" stroke="#c9a94a" stroke-width="1"/>
+        <text x="520" y="238" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="14" font-weight="600">Domain</text>
+        <text x="520" y="260" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">+ Use Cases</text>
+        <text x="520" y="284" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8.5">zero dependência externa</text>
+
+        <!-- Driving ports (on left hex edge) -->
+        <rect x="300" y="150" width="100" height="34" rx="6" fill="#ffffff" stroke="#4c9f70" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="350" y="171" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="8.5">«driving port»</text>
+        <rect x="300" y="290" width="100" height="34" rx="6" fill="#ffffff" stroke="#4c9f70" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="350" y="311" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="8.5">«driving port»</text>
+
+        <!-- Driven ports (on right hex edge) -->
+        <rect x="640" y="150" width="100" height="34" rx="6" fill="#ffffff" stroke="#7fa8cf" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="690" y="171" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="8.5">«driven port»</text>
+        <rect x="640" y="290" width="100" height="34" rx="6" fill="#ffffff" stroke="#7fa8cf" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="690" y="311" text-anchor="middle" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="8.5">«driven port»</text>
+
+        <!-- Driving adapters (left) -->
+        <rect x="40" y="140" width="150" height="54" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="115" y="163" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">REST Controller</text>
+        <text x="115" y="181" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">«primary adapter»</text>
+
+        <rect x="40" y="280" width="150" height="54" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="115" y="303" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11.5" font-weight="600">SQS Consumer</text>
+        <text x="115" y="321" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">«primary adapter»</text>
+
+        <!-- Driven adapters (right) -->
+        <rect x="850" y="140" width="150" height="54" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="925" y="163" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">TypeOrm Repo</text>
+        <text x="925" y="181" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">«secondary adapter»</text>
+
+        <rect x="850" y="280" width="150" height="54" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="925" y="303" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Celcoin Client</text>
+        <text x="925" y="321" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">«secondary adapter»</text>
+
+        <!-- driving arrows: adapter → port (into core) -->
+        <line x1="190" y1="167" x2="300" y2="167" stroke="#4c9f70" stroke-width="1.5" marker-end="url(#h-in)"/>
+        <line x1="190" y1="307" x2="300" y2="307" stroke="#4c9f70" stroke-width="1.5" marker-end="url(#h-in)"/>
+        <!-- driven arrows: core → port → adapter (out) -->
+        <line x1="740" y1="167" x2="850" y2="167" stroke="#7fa8cf" stroke-width="1.5" marker-end="url(#h-out)"/>
+        <line x1="740" y1="307" x2="850" y2="307" stroke="#7fa8cf" stroke-width="1.5" marker-end="url(#h-out)"/>
+
+        <!-- dependency direction note -->
+        <text x="520" y="418" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8.5">adapters dependem do núcleo · o núcleo depende só de ports (abstract classes)</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- HEX 1 · Driving port -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Driving Port · input</span><span class="file">create-payment.port.ts</span></div>
+<pre><code><span class="cm">// driving port: o que o mundo externo pode PEDIR à aplicação</span>
+<span class="cm">// abstract class = contrato + token de DI (DIP)</span>
+<span class="k">export abstract class</span> <span class="ty">CreatePaymentPort</span> {
+  <span class="k">abstract</span> <span class="fn">execute</span>(
+    input: <span class="ty">CreatePaymentInput</span>,
+  ): <span class="ty">Promise</span>&lt;<span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt;&gt;;
+}
+
+<span class="cm">// primary adapter (REST) depende do port, não do use case concreto</span>
+<span class="de">@Controller</span>(<span class="st">'payments'</span>)
+<span class="k">export class</span> <span class="ty">RestPaymentAdapter</span> {
+  <span class="k">constructor</span>(<span class="k">private readonly</span> createPayment: <span class="ty">CreatePaymentPort</span>) {}
+
+  <span class="de">@Post</span>()
+  <span class="fn">handle</span>(<span class="de">@Body</span>() dto: <span class="ty">CreatePaymentDto</span>) {
+    <span class="k">return</span> <span class="k">this</span>.createPayment.<span class="fn">execute</span>(dto);
+  }
+}</code></pre>
+        </div>
+
+        <!-- HEX 2 · Core implements driving, depends on driven -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Core · use case</span><span class="file">create-payment.use-case.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">CreatePaymentUseCase</span> <span class="k">extends</span> <span class="ty">CreatePaymentPort</span> {
+  <span class="k">constructor</span>(
+    <span class="cm">// driven ports — abstract classes, resolvidas por adapters</span>
+    <span class="k">private readonly</span> repository: <span class="ty">PaymentRepository</span>,
+    <span class="k">private readonly</span> pixGateway: <span class="ty">PixGatewayPort</span>,
+  ) { <span class="k">super</span>(); }
+
+  <span class="k">async</span> <span class="fn">execute</span>(input: <span class="ty">CreatePaymentInput</span>) {
+    <span class="k">const</span> payment = <span class="ty">Payment</span>.<span class="fn">create</span>(input);
+    <span class="k">if</span> (payment.isErr) <span class="k">return</span> payment;
+
+    <span class="k">await</span> <span class="k">this</span>.pixGateway.<span class="fn">dispatch</span>(payment.value);  <span class="cm">// driven</span>
+    <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(payment.value);      <span class="cm">// driven</span>
+    <span class="k">return</span> <span class="fn">ok</span>(payment.value);
+  }
+}</code></pre>
+        </div>
+
+        <!-- HEX 3 · Driven port + wiring -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Driven Port + Wiring</span><span class="file">pix-gateway.port.ts · payments.module.ts</span></div>
+<pre><code><span class="cm">// driven port: o que a aplicação PRECISA do mundo externo</span>
+<span class="k">export abstract class</span> <span class="ty">PixGatewayPort</span> {
+  <span class="k">abstract</span> <span class="fn">dispatch</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt;;
+}
+
+<span class="cm">// secondary adapter implementa o driven port</span>
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">CelcoinPixAdapter</span> <span class="k">implements</span> <span class="ty">PixGatewayPort</span> {
+  <span class="k">async</span> <span class="fn">dispatch</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; { <span class="cm">/* HTTP → Celcoin */</span> }
+}
+
+<span class="de">@Module</span>({
+  controllers: [<span class="ty">RestPaymentAdapter</span>],
+  providers: [
+    <span class="cm">// driving port → use case</span>
+    { provide: <span class="ty">CreatePaymentPort</span>, useClass: <span class="ty">CreatePaymentUseCase</span> },
+    <span class="cm">// driven ports → secondary adapters</span>
+    { provide: <span class="ty">PaymentRepository</span>, useClass: <span class="ty">TypeOrmPaymentRepository</span> },
+    { provide: <span class="ty">PixGatewayPort</span>, useClass: <span class="ty">CelcoinPixAdapter</span> },
+  ],
+})
+<span class="k">export class</span> <span class="ty">PaymentsModule</span> {}</code></pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══════════════════ FEATURE-FIRST (PRAGMATIC) ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Project Layout · Feature-First (Pragmatic)</p>
+      <h2 class="flow-title">Organização pragmática: <em>vertical slice por feature</em></h2>
+      <p class="flow-sub">Sem quebrar tudo em camadas físicas antes da hora. Cada feature é uma fatia vertical auto-contida: <strong>um controller por feature</strong> roteia para vários <strong>use-cases</strong> numa pasta <code>use-cases/</code> flat, onde cada arquivo <code>*.use-case.ts</code> reúne as três coisas: os tipos <code>Input</code>/<code>Output</code> e a classe. A regra de ouro do meio-termo: <strong>port só onde há I/O externa</strong> (banco, gateway, fila) — colaborador interno é classe concreta, nada de <code>abstract class</code> por simetria. Implementações concretas compartilhadas (datasource, cliente HTTP, SDK da Celcoin) vivem numa <code>infrastructure/</code> <strong>global</strong>; os adapters específicos da feature ficam nela mesma.</p>
+
+      <svg viewBox="0 0 1040 90" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Regra: port só para I/O externa">
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <rect x="24" y="18" width="470" height="54" rx="10" fill="#bfe3c6" opacity="0.4" stroke="#4c9f70" stroke-width="1.1"/>
+        <text x="44" y="42" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">Colaborador interno</text>
+        <text x="44" y="60" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="9">classe concreta · injetada direto · sem port</text>
+        <rect x="546" y="18" width="470" height="54" rx="10" fill="#bcd8ee" opacity="0.4" stroke="#7fa8cf" stroke-width="1.1"/>
+        <text x="566" y="42" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">I/O externa (DB · gateway · fila)</text>
+        <text x="566" y="60" fill="#33506b" font-family="'Geist Mono',monospace" font-size="9">abstract class = port · adapter usa infra global</text>
+        <text x="520" y="47" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="11" font-weight="600">vs</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- Folder tree -->
+        <div class="code-block layer--tree">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Folder Structure</span><span class="file">src/</span></div>
+<pre><code><span class="tr-dir">src/</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">payments/</span><span class="tr-note">                  # feature = vertical slice</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-file">payments.controller.ts</span><span class="tr-note">    # 1 controller p/ a feature (roteia p/ use-cases)</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">use-cases/</span><span class="tr-note">               # COMMANDS — flat, 1 arquivo por ação</span>
+<span class="tr-glob">│  │  ├─ </span><span class="tr-file">create-payment.use-case.ts</span><span class="tr-note">  # Input + Output + classe</span>
+<span class="tr-glob">│  │  └─ </span><span class="tr-file">refund-payment.use-case.ts</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">queries/</span><span class="tr-note">                 # QUERIES — 1 query service por contexto</span>
+<span class="tr-glob">│  │  └─ </span><span class="tr-file">payments.query-service.ts</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">domain/</span>
+<span class="tr-glob">│  │  ├─ </span><span class="tr-file">payment.ts</span><span class="tr-note">               # entity + regras</span>
+<span class="tr-glob">│  │  ├─ </span><span class="tr-file">money.ts</span><span class="tr-note">                 # value object</span>
+<span class="tr-glob">│  │  └─ </span><span class="tr-file">fee-calculator.ts</span><span class="tr-note">        # interno → sem port</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">ports/</span><span class="tr-note">                   # SÓ contratos de I/O externa da feature</span>
+<span class="tr-glob">│  │  ├─ </span><span class="tr-port">payment.repository.ts</span><span class="tr-note">    # abstract class</span>
+<span class="tr-glob">│  │  └─ </span><span class="tr-port">pix-gateway.ts</span><span class="tr-note">           # abstract class</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">adapters/</span><span class="tr-note">                # impl. específicas da feature</span>
+<span class="tr-glob">│  │  ├─ </span><span class="tr-file">typeorm-payment.repository.ts</span>
+<span class="tr-glob">│  │  └─ </span><span class="tr-file">celcoin-pix.gateway.ts</span>
+<span class="tr-glob">│  └─ </span><span class="tr-file">payments.module.ts</span><span class="tr-note">       # composition root da feature</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">infrastructure/</span><span class="tr-note">            # GLOBAL: concretos compartilhados</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">database/</span><span class="tr-note">                # TypeORM datasource, migrations, base repo</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">http/</span><span class="tr-note">                    # cliente HTTP base, interceptors, retry</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-dir">celcoin/</span><span class="tr-note">                 # SDK/cliente low-level da Celcoin</span>
+<span class="tr-glob">│  └─ </span><span class="tr-file">infrastructure.module.ts</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">shared/</span><span class="tr-note">                    # Result, BusinessError, base VO</span>
+<span class="tr-glob">└─ </span><span class="tr-file">app.module.ts</span></code></pre>
+        </div>
+
+        <!-- Use case: internal collaborator injected directly, port only for I/O -->
+        <!-- Feature controller: one per feature, routes to use-cases -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Controller da Feature</span><span class="file">payments.controller.ts</span></div>
+<pre><code><span class="cm">// UM controller para a feature — orquestra vários use-cases</span>
+<span class="de">@Controller</span>(<span class="st">'payments'</span>)
+<span class="k">export class</span> <span class="ty">PaymentsController</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> createPayment: <span class="ty">CreatePaymentUseCase</span>,
+    <span class="k">private readonly</span> refundPayment: <span class="ty">RefundPaymentUseCase</span>,
+  ) {}
+
+  <span class="de">@Post</span>()
+  <span class="fn">create</span>(<span class="de">@Body</span>() dto: <span class="ty">CreatePaymentDto</span>) {
+    <span class="cm">// mapeia HTTP → Input do use-case</span>
+    <span class="k">const</span> input: <span class="ty">CreatePaymentInput</span> = { amount: dto.amount, pixKey: dto.pixKey };
+    <span class="k">return</span> <span class="k">this</span>.createPayment.<span class="fn">execute</span>(input);
+  }
+
+  <span class="de">@Post</span>(<span class="st">':id/refund'</span>)
+  <span class="fn">refund</span>(<span class="de">@Param</span>(<span class="st">'id'</span>) id: <span class="ty">string</span>) {
+    <span class="k">return</span> <span class="k">this</span>.refundPayment.<span class="fn">execute</span>({ paymentId: id });
+  }
+}</code></pre>
+        </div>
+
+        <!-- Use case: internal collaborator injected directly, port only for I/O -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Use Case · tudo num arquivo</span><span class="file">use-cases/create-payment.use-case.ts</span></div>
+<pre><code><span class="cm">// as 3 coisas juntas: Input, Output e a classe do use-case</span>
+<span class="k">export type</span> <span class="ty">CreatePaymentInput</span>  = { amount: <span class="ty">number</span>; pixKey: <span class="ty">string</span> };
+<span class="k">export type</span> <span class="ty">CreatePaymentOutput</span> = <span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt;;
+
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">CreatePaymentUseCase</span> {
+  <span class="k">constructor</span>(
+    <span class="cm">// I/O externa → depende do PORT (abstract class)</span>
+    <span class="k">private readonly</span> repository: <span class="ty">PaymentRepository</span>,
+    <span class="k">private readonly</span> pixGateway: <span class="ty">PixGateway</span>,
+    <span class="cm">// colaborador interno → classe concreta, injetada direto</span>
+    <span class="k">private readonly</span> fees: <span class="ty">FeeCalculator</span>,
+  ) {}
+
+  <span class="k">async</span> <span class="fn">execute</span>(input: <span class="ty">CreatePaymentInput</span>): <span class="ty">Promise</span>&lt;<span class="ty">CreatePaymentOutput</span>&gt; {
+    <span class="k">const</span> payment = <span class="ty">Payment</span>.<span class="fn">create</span>(input, <span class="k">this</span>.fees);
+    <span class="k">if</span> (payment.isErr) <span class="k">return</span> payment;
+
+    <span class="k">await</span> <span class="k">this</span>.pixGateway.<span class="fn">dispatch</span>(payment.value);
+    <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(payment.value);
+    <span class="k">return</span> <span class="fn">ok</span>(payment.value);
+  }
+}</code></pre>
+        </div>
+
+        <!-- Internal collaborator: plain class, NO port -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">4</span><span class="layer-name">Colaborador Interno · sem port</span><span class="file">domain/fee-calculator.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">FeeCalculator</span> {
+  <span class="cm">// lógica pura, sem I/O → não precisa de abstração/port.</span>
+  <span class="cm">// injeta a classe concreta; se um dia virar externo, aí sim extrai port.</span>
+  <span class="fn">calculate</span>(amount: <span class="ty">Money</span>): <span class="ty">Money</span> {
+    <span class="k">const</span> feeCents = <span class="ty">Math</span>.<span class="fn">round</span>(amount.<span class="fn">toCents</span>() * <span class="nu">0.0099</span>);
+    <span class="k">return</span> <span class="ty">Money</span>.<span class="fn">of</span>(feeCents).value;
+  }
+}</code></pre>
+        </div>
+
+        <!-- Ports + wiring: only external I/O -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">5</span><span class="layer-name">Ports + Wiring (usa infra global)</span><span class="file">ports/*.ts · payments.module.ts</span></div>
+<pre><code><span class="cm">// ports/ — abstract class SOMENTE para o que cruza a borda da feature</span>
+<span class="k">export abstract class</span> <span class="ty">PaymentRepository</span> {
+  <span class="k">abstract</span> <span class="fn">save</span>(p: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt;;
+}
+<span class="k">export abstract class</span> <span class="ty">PixGateway</span> {
+  <span class="k">abstract</span> <span class="fn">dispatch</span>(p: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt;;
+}
+
+<span class="de">@Module</span>({
+  <span class="cm">// infra GLOBAL: datasource, cliente HTTP, SDK Celcoin — reusados por adapters</span>
+  imports: [<span class="ty">InfrastructureModule</span>],
+  controllers: [<span class="ty">PaymentsController</span>],
+  providers: [
+    <span class="ty">CreatePaymentUseCase</span>,
+    <span class="ty">RefundPaymentUseCase</span>,
+    <span class="ty">FeeCalculator</span>,                 <span class="cm">// interno: sem bind de port</span>
+    <span class="cm">// I/O externa: port → adapter da feature (que usa a infra global)</span>
+    { provide: <span class="ty">PaymentRepository</span>, useClass: <span class="ty">TypeOrmPaymentRepository</span> },
+    { provide: <span class="ty">PixGateway</span>, useClass: <span class="ty">CelcoinPixGateway</span> },
+  ],
+})
+<span class="k">export class</span> <span class="ty">PaymentsModule</span> {}</code></pre>
+        </div>
+
+      </div>
+
+      <p class="flow-sub" style="margin-top:1.5rem;">Quando escalar? Extraia um port novo só quando aparecer <strong>segunda implementação</strong>, necessidade real de <strong>teste com fake</strong>, ou o colaborador passar a fazer <strong>I/O</strong>. Antes disso, classe concreta é mais simples de ler, navegar e refatorar — YAGNI aplicado à arquitetura.</p>
+    </section>
+
+    <!-- ══════════════════ CQS · COMMANDS vs QUERIES ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">CQS · Command-Query Separation</p>
+      <h2 class="flow-title">Separação CQS: <em>Commands &amp; Queries</em></h2>
+      <p class="flow-sub">A pasta de casos de uso é dividida por intenção. <strong>Command</strong> (escrita, muda estado) → um <strong>use-case dedicado por ação</strong>, que passa pelo domínio e persiste via <strong>repository</strong>. <strong>Query</strong> (leitura, sem efeito) → um <strong>query service por contexto</strong>: uma classe com vários métodos, cada um uma consulta. Como o <em>repository é um padrão de persistência de domínio</em>, ele pertence ao lado de <strong>command</strong>; a query pode injetar direto um <strong>database service</strong> e ler o que precisa — sem repository com métodos sob medida.</p>
+
+      <svg viewBox="0 0 1040 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="CQS: caminho de command e caminho de query">
+        <defs>
+          <marker id="c-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="c-app" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#d98a94"/></marker>
+          <marker id="c-blue" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#7fa8cf"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- COMMAND lane -->
+        <rect x="20" y="30" width="1000" height="112" rx="12" fill="#f4c4c9" opacity="0.20" stroke="#d98a94" stroke-width="1.2" stroke-dasharray="7,5"/>
+        <text x="40" y="54" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">COMMAND · escrita · muda estado</text>
+
+        <rect x="44" y="70" width="120" height="48" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="104" y="90" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Controller</text>
+        <text x="104" y="106" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">@Post / @Patch</text>
+
+        <rect x="224" y="70" width="150" height="48" rx="8" fill="#f4c4c9" stroke="#2d3142" stroke-width="1"/>
+        <text x="299" y="90" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">UseCase por ação</text>
+        <text x="299" y="106" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">CreatePayment · Refund…</text>
+
+        <rect x="434" y="70" width="130" height="48" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="499" y="90" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Domain</text>
+        <text x="499" y="106" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">entity · invariantes</text>
+
+        <rect x="624" y="70" width="140" height="48" rx="8" fill="#ffffff" stroke="#c9a94a" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="694" y="90" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Repository «port»</text>
+        <text x="694" y="106" text-anchor="middle" fill="#8a6a1a" font-family="'Geist Mono',monospace" font-size="8">persistência de domínio</text>
+
+        <rect x="864" y="70" width="132" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="930" y="90" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Database</text>
+        <text x="930" y="106" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">write model</text>
+
+        <line x1="164" y1="94" x2="224" y2="94" stroke="#2d3142" stroke-width="1.3" marker-end="url(#c-ink)"/>
+        <line x1="374" y1="94" x2="434" y2="94" stroke="#2d3142" stroke-width="1.3" marker-end="url(#c-ink)"/>
+        <line x1="564" y1="94" x2="624" y2="94" stroke="#d98a94" stroke-width="1.3" marker-end="url(#c-app)"/>
+        <line x1="764" y1="94" x2="864" y2="94" stroke="#c9a94a" stroke-width="1.3" stroke-dasharray="2,4"/>
+        <polygon points="858,90 866,94 858,98" fill="#c9a94a"/>
+
+        <!-- QUERY lane -->
+        <rect x="20" y="166" width="1000" height="112" rx="12" fill="#bcd8ee" opacity="0.22" stroke="#7fa8cf" stroke-width="1.2" stroke-dasharray="7,5"/>
+        <text x="40" y="190" fill="#33506b" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">QUERY · leitura · sem efeito</text>
+
+        <rect x="44" y="206" width="120" height="48" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="104" y="226" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Controller</text>
+        <text x="104" y="242" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">@Get</text>
+
+        <rect x="224" y="206" width="200" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="324" y="226" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">QueryService por contexto</text>
+        <text x="324" y="242" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">1 classe · N métodos = N queries</text>
+
+        <rect x="864" y="206" width="132" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="930" y="226" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Database</text>
+        <text x="930" y="242" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">read direto · sem repo</text>
+
+        <line x1="164" y1="230" x2="224" y2="230" stroke="#2d3142" stroke-width="1.3" marker-end="url(#c-ink)"/>
+        <line x1="424" y1="230" x2="864" y2="230" stroke="#7fa8cf" stroke-width="1.4" marker-end="url(#c-blue)"/>
+        <text x="644" y="222" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8.5">injeta DatabaseService · SQL/QueryBuilder · retorna DTO de leitura</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- Folder split -->
+        <div class="code-block layer--tree">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Layout · commands vs queries</span><span class="file">payments/</span></div>
+<pre><code><span class="tr-dir">payments/</span>
+<span class="tr-glob">├─ </span><span class="tr-file">payments.controller.ts</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">use-cases/</span><span class="tr-note">                 # COMMANDS — 1 arquivo por ação</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-file">create-payment.use-case.ts</span>
+<span class="tr-glob">│  ├─ </span><span class="tr-file">refund-payment.use-case.ts</span>
+<span class="tr-glob">│  └─ </span><span class="tr-file">cancel-payment.use-case.ts</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">queries/</span><span class="tr-note">                   # QUERIES — 1 service por contexto</span>
+<span class="tr-glob">│  └─ </span><span class="tr-file">payments.query-service.ts</span><span class="tr-note">   # N métodos = N queries</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">domain/</span>
+<span class="tr-glob">├─ </span><span class="tr-dir">ports/</span><span class="tr-note">                     # repository (lado command)</span>
+<span class="tr-glob">└─ </span><span class="tr-file">payments.module.ts</span></code></pre>
+        </div>
+
+        <!-- Command use-case -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Command · use-case por ação</span><span class="file">use-cases/refund-payment.use-case.ts</span></div>
+<pre><code><span class="k">export type</span> <span class="ty">RefundPaymentInput</span>  = { paymentId: <span class="ty">string</span> };
+<span class="k">export type</span> <span class="ty">RefundPaymentOutput</span> = <span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt;;
+
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">RefundPaymentUseCase</span> {
+  <span class="cm">// escrita → passa pelo domínio e persiste via REPOSITORY</span>
+  <span class="k">constructor</span>(<span class="k">private readonly</span> repository: <span class="ty">PaymentRepository</span>) {}
+
+  <span class="k">async</span> <span class="fn">execute</span>(input: <span class="ty">RefundPaymentInput</span>): <span class="ty">Promise</span>&lt;<span class="ty">RefundPaymentOutput</span>&gt; {
+    <span class="k">const</span> payment = <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">findById</span>(input.paymentId);
+    <span class="k">if</span> (!payment) {
+      <span class="k">return</span> <span class="fn">err</span>({ type: <span class="st">'PAYMENT_NOT_FOUND'</span>, message: <span class="st">'pagamento inexistente'</span> });
+    }
+
+    <span class="k">const</span> refunded = payment.<span class="fn">refund</span>();      <span class="cm">// regra de transição no domínio</span>
+    <span class="k">if</span> (refunded.isErr) <span class="k">return</span> refunded;
+
+    <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(refunded.value);
+    <span class="k">return</span> <span class="fn">ok</span>(refunded.value);
+  }
+}</code></pre>
+        </div>
+
+        <!-- Query service -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Query · service por contexto</span><span class="file">queries/payments.query-service.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">PaymentsQueryService</span> {
+  <span class="cm">// leitura → injeta o DATABASE direto, sem repository de domínio</span>
+  <span class="k">constructor</span>(<span class="k">private readonly</span> db: <span class="ty">DatabaseService</span>) {}
+
+  <span class="cm">// cada método é uma query; devolve DTO de leitura, não a entity</span>
+  <span class="fn">listByAccount</span>(accountId: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">PaymentListItem</span>[]&gt; {
+    <span class="k">return</span> <span class="k">this</span>.db.<span class="fn">query</span>&lt;<span class="ty">PaymentListItem</span>&gt;(
+      <span class="st">`SELECT id, amount_cents, status, created_at
+       FROM payments WHERE account_id = $1 ORDER BY created_at DESC`</span>,
+      [accountId],
+    );
+  }
+
+  <span class="k">async</span> <span class="fn">dailyTotals</span>(accountId: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">DailyTotal</span>[]&gt; {
+    <span class="k">return</span> <span class="k">this</span>.db.<span class="fn">query</span>&lt;<span class="ty">DailyTotal</span>&gt;(
+      <span class="st">`SELECT date_trunc('day', created_at) AS day, SUM(amount_cents) AS total
+       FROM payments WHERE account_id = $1 GROUP BY day`</span>,
+      [accountId],
+    );
+  }
+
+  <span class="fn">findDetail</span>(id: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">PaymentDetail</span> | <span class="k">null</span>&gt; {
+    <span class="k">return</span> <span class="k">this</span>.db.<span class="fn">queryOne</span>&lt;<span class="ty">PaymentDetail</span>&gt;(
+      <span class="st">`SELECT * FROM payments WHERE id = $1`</span>, [id],
+    );
+  }
+}</code></pre>
+        </div>
+
+      </div>
+
+      <p class="flow-sub" style="margin-top:1.5rem;"><strong>Por que a assimetria?</strong> O <em>repository</em> existe para reconstruir e persistir <strong>agregados</strong> com suas invariantes — isso só importa na escrita. Na leitura não há regra a proteger: forçar tudo por repository gera métodos <code>findXById</code> sob medida e mapeamento entity→DTO desnecessário. O query service lê o <em>read model</em> direto do banco e devolve exatamente a forma que a tela precisa. É CQS sem a complexidade de CQRS com bancos separados.</p>
+    </section>
+
+    <!-- ══════════════════ USE-CASE · DOMAIN SERVICES · RESULT ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Anatomy · Use-Case, Domain Services &amp; Result</p>
+      <h2 class="flow-title">Anatomia interna: <em>Use-Case, Domain Services &amp; Result Pattern</em></h2>
+      <p class="flow-sub">Como um use-case se organiza por dentro. Ele é um <strong>orquestrador fino</strong>: valida a entrada, delega a regra ao domínio (entity ou <strong>domain service</strong> quando a lógica cruza agregados), fala com o mundo via <strong>ports</strong>, e devolve um <code>Result&lt;T, E&gt;</code>. Esse <code>Result</code> é o <strong>ponto de bifurcação</strong>: ele é uma união que sempre resolve em <strong>um dos dois construtores</strong> — <code>ok(value)</code> (caminho feliz) ou <code>err(error)</code> (erro de negócio, sem exception). Qualquer etapa que falha já produz um <code>Result</code> na variante <code>err</code>, e o fluxo faz <em>short-circuit</em> no primeiro deles.</p>
+
+      <svg viewBox="0 0 1040 270" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Anatomia de um use-case: input, validação, domínio, ports, Result que bifurca em ok ou err">
+        <defs>
+          <marker id="a-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="a-red" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#a04b6b"/></marker>
+          <marker id="a-grn" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#4c9f70"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- Use-case container -->
+        <rect x="150" y="40" width="470" height="118" rx="12" fill="#f4c4c9" opacity="0.22" stroke="#d98a94" stroke-width="1.3" stroke-dasharray="7,5"/>
+        <text x="170" y="64" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.08em">USE-CASE · orquestrador fino</text>
+
+        <!-- Input -->
+        <rect x="24" y="80" width="110" height="44" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="79" y="100" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Input</text>
+        <text x="79" y="115" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">DTO → tipo</text>
+
+        <!-- Validate -->
+        <rect x="164" y="80" width="120" height="44" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="224" y="100" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Entity.create</text>
+        <text x="224" y="115" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">invariantes</text>
+
+        <!-- Domain service -->
+        <rect x="314" y="80" width="130" height="44" rx="8" fill="#f4c4c9" stroke="#2d3142" stroke-width="1"/>
+        <text x="379" y="100" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">Domain Service</text>
+        <text x="379" y="115" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">regra multi-agregado</text>
+
+        <!-- Ports -->
+        <rect x="474" y="80" width="120" height="44" rx="8" fill="#ffffff" stroke="#c9a94a" stroke-width="1.3" stroke-dasharray="4,3"/>
+        <text x="534" y="100" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Ports</text>
+        <text x="534" y="115" text-anchor="middle" fill="#8a6a1a" font-family="'Geist Mono',monospace" font-size="8">repo · gateway</text>
+
+        <!-- forward arrows -->
+        <line x1="134" y1="102" x2="164" y2="102" stroke="#2d3142" stroke-width="1.3" marker-end="url(#a-ink)"/>
+        <line x1="284" y1="102" x2="314" y2="102" stroke="#2d3142" stroke-width="1.3" marker-end="url(#a-ink)"/>
+        <line x1="444" y1="102" x2="474" y2="102" stroke="#2d3142" stroke-width="1.3" marker-end="url(#a-ink)"/>
+
+        <!-- Result = ponto de bifurcação (fora do use-case, é o tipo de retorno) -->
+        <rect x="636" y="78" width="120" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1.4"/>
+        <text x="696" y="99" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">Result&lt;T, E&gt;</text>
+        <text x="696" y="115" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">união: ok | err</text>
+        <!-- into Result -->
+        <line x1="594" y1="102" x2="636" y2="102" stroke="#2d3142" stroke-width="1.4" marker-end="url(#a-ink)"/>
+
+        <!-- Result bifurca: ramo ok (cima) e ramo err (baixo), AMBOS saem do Result -->
+        <!-- ok branch -->
+        <rect x="856" y="40" width="150" height="46" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="931" y="61" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">ok(value)</text>
+        <text x="931" y="76" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">happy path → 201 Created</text>
+        <path d="M 756 92 H 806 V 63 H 856" fill="none" stroke="#4c9f70" stroke-width="1.5" marker-end="url(#a-grn)"/>
+
+        <!-- err branch -->
+        <rect x="856" y="118" width="150" height="46" rx="8" fill="#fdeef0" stroke="#a04b6b" stroke-width="1.1"/>
+        <text x="931" y="139" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">err(error)</text>
+        <text x="931" y="154" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">BusinessError → 4xx · sem throw</text>
+        <path d="M 756 112 H 806 V 141 H 856" fill="none" stroke="#a04b6b" stroke-width="1.5" marker-end="url(#a-red)"/>
+
+        <!-- branch labels -->
+        <text x="800" y="82" text-anchor="middle" fill="#4c9f70" font-family="'Geist Mono',monospace" font-size="8" font-weight="600">isOk</text>
+        <text x="800" y="128" text-anchor="middle" fill="#a04b6b" font-family="'Geist Mono',monospace" font-size="8" font-weight="600">isErr</text>
+
+        <!-- short-circuit: cada etapa que falha JÁ PRODUZ um Result(err) → converge no Result -->
+        <path d="M 224 124 V 210 H 690 V 126" fill="none" stroke="#a04b6b" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#a-red)"/>
+        <path d="M 379 124 V 210" fill="none" stroke="#a04b6b" stroke-width="1.3" stroke-dasharray="5,4"/>
+        <path d="M 534 124 V 210" fill="none" stroke="#a04b6b" stroke-width="1.3" stroke-dasharray="5,4"/>
+        <circle cx="224" cy="210" r="3.5" fill="#a04b6b"/>
+        <circle cx="379" cy="210" r="3.5" fill="#a04b6b"/>
+        <circle cx="534" cy="210" r="3.5" fill="#a04b6b"/>
+        <text x="440" y="204" text-anchor="middle" fill="#a04b6b" font-family="'Geist Mono',monospace" font-size="8.5">short-circuit: primeiro err já é um Result</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- Result Pattern primitives -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Result Pattern</span><span class="file">shared/result.ts</span></div>
+<pre><code><span class="cm">// discriminated union: sem exceptions no fluxo de negócio</span>
+<span class="k">export type</span> <span class="ty">Result</span>&lt;<span class="ty">T</span>, <span class="ty">E</span>&gt; =
+  | { kind: <span class="st">'ok'</span>;  isOk: <span class="k">true</span>;  isErr: <span class="k">false</span>; value: <span class="ty">T</span> }
+  | { kind: <span class="st">'err'</span>; isOk: <span class="k">false</span>; isErr: <span class="k">true</span>;  error: <span class="ty">E</span> };
+
+<span class="k">export const</span> <span class="fn">ok</span>  = &lt;<span class="ty">T</span>&gt;(value: <span class="ty">T</span>): <span class="ty">Result</span>&lt;<span class="ty">T</span>, <span class="ty">never</span>&gt; =&gt;
+  ({ kind: <span class="st">'ok'</span>, isOk: <span class="k">true</span>, isErr: <span class="k">false</span>, value });
+
+<span class="k">export const</span> <span class="fn">err</span> = &lt;<span class="ty">E</span>&gt;(error: <span class="ty">E</span>): <span class="ty">Result</span>&lt;<span class="ty">never</span>, <span class="ty">E</span>&gt; =&gt;
+  ({ kind: <span class="st">'err'</span>, isOk: <span class="k">false</span>, isErr: <span class="k">true</span>, error });
+
+<span class="cm">// erro de negócio semântico — mapeado p/ HTTP na borda</span>
+<span class="k">export type</span> <span class="ty">BusinessError</span> = {
+  type: <span class="st">'INVALID_AMOUNT'</span> | <span class="st">'PAYMENT_NOT_FOUND'</span> | <span class="st">'INSUFFICIENT_LIMIT'</span>;
+  message: <span class="ty">string</span>;
+};</code></pre>
+        </div>
+
+        <!-- Domain Service -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Domain Service</span><span class="file">domain/payment-limit.service.ts</span></div>
+<pre><code><span class="cm">// stateless · regra que NÃO pertence a um único agregado</span>
+<span class="cm">// (envolve o Payment + o limite diário da conta)</span>
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">PaymentLimitService</span> {
+  <span class="fn">assertWithinDailyLimit</span>(
+    payment: <span class="ty">Payment</span>,
+    todayTotal: <span class="ty">Money</span>,
+    dailyLimit: <span class="ty">Money</span>,
+  ): <span class="ty">Result</span>&lt;<span class="ty">void</span>, <span class="ty">BusinessError</span>&gt; {
+    <span class="k">const</span> projected = todayTotal.<span class="fn">add</span>(payment.amount);
+
+    <span class="k">if</span> (projected.<span class="fn">isGreaterThan</span>(dailyLimit)) {
+      <span class="k">return</span> <span class="fn">err</span>({
+        type: <span class="st">'INSUFFICIENT_LIMIT'</span>,
+        message: <span class="st">'excede o limite diário da conta'</span>,
+      });
+    }
+    <span class="k">return</span> <span class="fn">ok</span>(<span class="k">undefined</span>);
+  }
+}</code></pre>
+        </div>
+
+        <!-- Use-case composing everything, threading Result -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Use-Case · compõe tudo</span><span class="file">use-cases/create-payment.use-case.ts</span></div>
+<pre><code><span class="k">export type</span> <span class="ty">CreatePaymentInput</span>  = { accountId: <span class="ty">string</span>; amount: <span class="ty">number</span>; pixKey: <span class="ty">string</span> };
+<span class="k">export type</span> <span class="ty">CreatePaymentOutput</span> = <span class="ty">Result</span>&lt;<span class="ty">Payment</span>, <span class="ty">BusinessError</span>&gt;;
+
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">CreatePaymentUseCase</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> repository: <span class="ty">PaymentRepository</span>,   <span class="cm">// port</span>
+    <span class="k">private readonly</span> pixGateway: <span class="ty">PixGateway</span>,       <span class="cm">// port</span>
+    <span class="k">private readonly</span> limitService: <span class="ty">PaymentLimitService</span>, <span class="cm">// domain service</span>
+  ) {}
+
+  <span class="k">async</span> <span class="fn">execute</span>(input: <span class="ty">CreatePaymentInput</span>): <span class="ty">Promise</span>&lt;<span class="ty">CreatePaymentOutput</span>&gt; {
+    <span class="cm">// 1) invariantes do agregado</span>
+    <span class="k">const</span> payment = <span class="ty">Payment</span>.<span class="fn">create</span>(input);
+    <span class="k">if</span> (payment.isErr) <span class="k">return</span> payment;              <span class="cm">// short-circuit</span>
+
+    <span class="cm">// 2) regra multi-agregado via domain service</span>
+    <span class="k">const</span> today = <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">totalToday</span>(input.accountId);
+    <span class="k">const</span> check = <span class="k">this</span>.limitService.<span class="fn">assertWithinDailyLimit</span>(
+      payment.value, today, <span class="ty">Money</span>.<span class="fn">of</span>(<span class="nu">500000</span>).value,
+    );
+    <span class="k">if</span> (check.isErr) <span class="k">return</span> check;                  <span class="cm">// short-circuit</span>
+
+    <span class="cm">// 3) efeitos via ports, então devolve ok</span>
+    <span class="k">await</span> <span class="k">this</span>.pixGateway.<span class="fn">dispatch</span>(payment.value);
+    <span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(payment.value);
+    <span class="k">return</span> <span class="fn">ok</span>(payment.value);
+  }
+}</code></pre>
+        </div>
+
+      </div>
+
+      <p class="flow-sub" style="margin-top:1.5rem;"><strong>Entity vs Domain Service:</strong> se a regra usa só o estado de <em>um</em> agregado, ela mora na própria entity (<code>Payment.create</code>). Quando precisa de <em>dois ou mais</em> agregados ou de dados que a entity não possui (limite diário, saldo de outra conta), vira um <strong>domain service</strong> stateless. O use-case nunca contém regra de negócio — ele só sequencia e propaga o <code>Result</code>.</p>
+    </section>
+
+    <!-- ══════════════════ MENSAGERIA · OUTBOX · PUB/SUB · IDEMPOTÊNCIA ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Messaging · Outbox · Pub/Sub · Idempotency</p>
+      <h2 class="flow-title">Mensageria confiável: <em>Outbox, Pub/Sub &amp; Idempotência</em></h2>
+      <p class="flow-sub">O problema central em sistemas distribuídos: como publicar um evento <strong>e</strong> gravar no banco de forma atômica? O <strong>Transactional Outbox</strong> resolve gravando o evento na mesma transação do estado; um <strong>relay</strong> lê a tabela e publica no broker (SNS → SQS, fan-out <strong>pub/sub</strong>). Como o relay garante <em>at-least-once</em>, o consumidor precisa ser <strong>idempotente</strong> — processar a mesma mensagem duas vezes tem o mesmo efeito que processar uma.</p>
+
+      <svg viewBox="0 0 1040 340" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Fluxo Outbox, relay, broker pub/sub e consumidores idempotentes">
+        <defs>
+          <marker id="m-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="m-blue" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#7fa8cf"/></marker>
+          <marker id="m-coral" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#d98a94"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+
+        <!-- Transaction boundary -->
+        <rect x="20" y="40" width="300" height="150" rx="12" fill="#f4c4c9" opacity="0.18" stroke="#d98a94" stroke-width="1.3" stroke-dasharray="7,5"/>
+        <text x="40" y="64" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.06em">1 TRANSAÇÃO ATÔMICA</text>
+
+        <rect x="40" y="80" width="120" height="44" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="100" y="100" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">payments</text>
+        <text x="100" y="115" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">estado do agregado</text>
+
+        <rect x="40" y="132" width="120" height="44" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="100" y="152" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">outbox</text>
+        <text x="100" y="167" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">evento pendente</text>
+
+        <text x="230" y="128" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8.5">INSERT nos dois</text>
+        <text x="230" y="142" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8.5">no mesmo COMMIT</text>
+
+        <!-- Relay -->
+        <rect x="360" y="96" width="120" height="60" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="420" y="120" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Relay</text>
+        <text x="420" y="135" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">poller · SKIP LOCKED</text>
+        <text x="420" y="147" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">marca published</text>
+        <line x1="160" y1="154" x2="360" y2="132" stroke="#7fa8cf" stroke-width="1.4" marker-end="url(#m-blue)"/>
+
+        <!-- Broker (SNS topic) -->
+        <rect x="520" y="96" width="120" height="60" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="580" y="120" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">SNS Topic</text>
+        <text x="580" y="135" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">pub/sub · fan-out</text>
+        <text x="580" y="147" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">at-least-once</text>
+        <line x1="480" y1="126" x2="520" y2="126" stroke="#2d3142" stroke-width="1.3" marker-end="url(#m-ink)"/>
+
+        <!-- SQS queues (subscribers) -->
+        <rect x="700" y="52" width="130" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="765" y="72" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10" font-weight="600">SQS · ledger</text>
+        <text x="765" y="87" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">subscriber</text>
+
+        <rect x="700" y="112" width="130" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="765" y="132" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10" font-weight="600">SQS · notify</text>
+        <text x="765" y="147" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">subscriber</text>
+
+        <rect x="700" y="172" width="130" height="48" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="765" y="192" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10" font-weight="600">SQS · DLQ</text>
+        <text x="765" y="207" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">após N falhas</text>
+
+        <line x1="640" y1="118" x2="700" y2="76"  stroke="#d98a94" stroke-width="1.3" marker-end="url(#m-coral)"/>
+        <line x1="640" y1="126" x2="700" y2="136" stroke="#d98a94" stroke-width="1.3" marker-end="url(#m-coral)"/>
+        <line x1="640" y1="134" x2="700" y2="196" stroke="#d98a94" stroke-width="1.3" stroke-dasharray="4,3" marker-end="url(#m-coral)"/>
+
+        <!-- Consumer with idempotency -->
+        <rect x="880" y="88" width="140" height="96" rx="10" fill="#ffffff" stroke="#2d3142" stroke-width="1.2"/>
+        <text x="950" y="110" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Consumer</text>
+        <rect x="896" y="122" width="108" height="46" rx="6" fill="#fdeef0" stroke="#a04b6b" stroke-width="1"/>
+        <text x="950" y="140" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="9.5" font-weight="600">idempotency</text>
+        <text x="950" y="153" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="7.5">SETNX messageId</text>
+        <text x="950" y="164" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="7.5">dedupe · skip repetido</text>
+        <line x1="830" y1="76"  x2="880" y2="120" stroke="#2d3142" stroke-width="1.2" marker-end="url(#m-ink)"/>
+        <line x1="830" y1="136" x2="880" y2="136" stroke="#2d3142" stroke-width="1.2" marker-end="url(#m-ink)"/>
+
+        <!-- lane labels -->
+        <text x="170" y="215" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8.5">grava evento junto com o estado — nunca perde nem publica fantasma</text>
+        <text x="600" y="250" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8.5">at-least-once garante entrega → consumidor deduplica por messageId</text>
+
+        <!-- states row for outbox -->
+        <rect x="20" y="272" width="1000" height="46" rx="10" fill="#f4c4c9" opacity="0.14" stroke="#d98a94" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="40" y="290" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="9" font-weight="600">OUTBOX STATE:</text>
+        <text x="150" y="290" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="9">PENDING</text>
+        <text x="230" y="290" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="9">──▶</text>
+        <text x="275" y="290" fill="#2d3142" font-family="'Geist Mono',monospace" font-size="9">PUBLISHED</text>
+        <text x="370" y="290" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="9">(relay marca após ACK do broker; retry se falhar → nunca deleta antes)</text>
+        <text x="40" y="308" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8.5">poller: SELECT ... WHERE status='PENDING' ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 100</text>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- Outbox write in same tx -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Outbox · escrita atômica</span><span class="file">adapters/typeorm-payment.repository.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">TypeOrmPaymentRepository</span> <span class="k">implements</span> <span class="ty">PaymentRepository</span> {
+  <span class="k">constructor</span>(<span class="k">private readonly</span> dataSource: <span class="ty">DataSource</span>) {}
+
+  <span class="k">async</span> <span class="fn">save</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="cm">// estado + evento na MESMA transação → atomicidade</span>
+    <span class="k">await</span> <span class="k">this</span>.dataSource.<span class="fn">transaction</span>(<span class="k">async</span> (tx) =&gt; {
+      <span class="k">await</span> tx.<span class="fn">save</span>(<span class="ty">PaymentModel</span>, <span class="fn">toModel</span>(payment));
+
+      <span class="k">for</span> (<span class="k">const</span> event <span class="k">of</span> payment.<span class="fn">pullEvents</span>()) {
+        <span class="k">await</span> tx.<span class="fn">insert</span>(<span class="ty">OutboxModel</span>, {
+          id: <span class="fn">randomUUID</span>(),
+          type: event.type,                 <span class="cm">// 'payment.created'</span>
+          aggregateId: payment.id,
+          payload: event.payload,
+          status: <span class="st">'PENDING'</span>,
+        });
+      }
+    });
+  }
+}</code></pre>
+        </div>
+
+        <!-- Relay publisher -->
+        <div class="code-block layer--infra">
+          <div class="code-head"><span class="num">2</span><span class="layer-name">Relay · poller → broker</span><span class="file">infrastructure/outbox/outbox-relay.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">OutboxRelay</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> dataSource: <span class="ty">DataSource</span>,
+    <span class="k">private readonly</span> sns: <span class="ty">SnsPublisher</span>,
+  ) {}
+
+  <span class="de">@Interval</span>(<span class="nu">2000</span>) <span class="cm">// poll a cada 2s (ou LISTEN/NOTIFY)</span>
+  <span class="k">async</span> <span class="fn">flush</span>(): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="k">await</span> <span class="k">this</span>.dataSource.<span class="fn">transaction</span>(<span class="k">async</span> (tx) =&gt; {
+      <span class="cm">// concorrência segura entre réplicas do relay</span>
+      <span class="k">const</span> batch = <span class="k">await</span> tx.<span class="fn">query</span>(
+        <span class="st">`SELECT * FROM outbox WHERE status = 'PENDING'
+         ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 100`</span>,
+      );
+
+      <span class="k">for</span> (<span class="k">const</span> row <span class="k">of</span> batch) {
+        <span class="cm">// messageId = id do outbox → chave de dedupe no consumidor</span>
+        <span class="k">await</span> <span class="k">this</span>.sns.<span class="fn">publish</span>(row.type, row.payload, { messageId: row.id });
+        <span class="k">await</span> tx.<span class="fn">update</span>(<span class="ty">OutboxModel</span>, row.id, { status: <span class="st">'PUBLISHED'</span> });
+      }
+    });
+  }
+}</code></pre>
+        </div>
+
+        <!-- Idempotent consumer -->
+        <div class="code-block layer--pres">
+          <div class="code-head"><span class="num">3</span><span class="layer-name">Consumer idempotente</span><span class="file">use-cases/on-payment-created.consumer.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">OnPaymentCreatedConsumer</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> idempotency: <span class="ty">IdempotencyStore</span>,
+    <span class="k">private readonly</span> ledger: <span class="ty">PostEntryUseCase</span>,
+  ) {}
+
+  <span class="de">@SqsMessageHandler</span>(<span class="st">'ledger-queue'</span>)
+  <span class="k">async</span> <span class="fn">handle</span>(message: <span class="ty">SqsMessage</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="k">const</span> { messageId, payload } = <span class="fn">parse</span>(message);
+
+    <span class="cm">// 1ª camada: dedupe atômico. SETNX → false se já visto</span>
+    <span class="k">const</span> firstTime = <span class="k">await</span> <span class="k">this</span>.idempotency.<span class="fn">claim</span>(messageId, { ttl: <span class="st">'24h'</span> });
+    <span class="k">if</span> (!firstTime) <span class="k">return</span>;              <span class="cm">// duplicata → no-op, ACK</span>
+
+    <span class="cm">// 2ª camada: a própria operação é idempotente por natureza</span>
+    <span class="cm">// (UPSERT por aggregateId, não INSERT cego)</span>
+    <span class="k">await</span> <span class="k">this</span>.ledger.<span class="fn">execute</span>({ paymentId: payload.aggregateId, amount: payload.amountCents });
+  }
+}</code></pre>
+        </div>
+
+      </div>
+
+      <p class="flow-sub" style="margin-top:1.5rem;"><strong>Idempotência em duas camadas:</strong> a primeira é o <em>dedupe</em> por <code>messageId</code> (chave única com TTL — Redis <code>SETNX</code> ou tabela <code>processed_messages</code>), que barra o reprocessamento na borda. A segunda é tornar a <em>própria operação</em> idempotente (UPSERT por chave de negócio, transição de estado condicional), como rede de segurança caso o dedupe expire ou falhe. Nunca confie só numa camada.</p>
+    </section>
+
+    <!-- ══════════════════ SAGA · ORQUESTRADO & COREOGRAFADO ══════════════════ -->
+    <section class="flow-section">
+      <p class="flow-eyebrow">Distributed Transactions · Saga Pattern</p>
+      <h2 class="flow-title">Saga: <em>Orquestrada &amp; Coreografada</em></h2>
+      <p class="flow-sub">Sem 2PC entre microserviços: uma <strong>saga</strong> divide a transação distribuída em passos locais, cada um com uma <strong>compensação</strong> que desfaz o efeito se um passo posterior falhar (consistência eventual). Duas formas de coordenar: <strong>orquestrada</strong> (um coordenador central manda os comandos e dispara as compensações) ou <strong>coreografada</strong> (cada serviço reage a eventos, sem coordenador — o fluxo emerge dos eventos).</p>
+
+      <!-- Orchestrated diagram -->
+      <svg viewBox="0 0 1040 300" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Saga orquestrada: coordenador central comanda passos e compensações">
+        <defs>
+          <marker id="s-ink" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#2d3142"/></marker>
+          <marker id="s-red" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#a04b6b"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <text x="24" y="28" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.06em">ORQUESTRADA · coordenador central</text>
+
+        <!-- Orchestrator -->
+        <rect x="430" y="46" width="180" height="52" rx="10" fill="#f4c4c9" stroke="#2d3142" stroke-width="1.3"/>
+        <text x="520" y="68" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="12" font-weight="600">PaymentSaga</text>
+        <text x="520" y="84" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="8">orchestrator · state machine</text>
+
+        <!-- Steps -->
+        <rect x="60" y="170" width="150" height="52" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="135" y="191" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">1 · Reservar</text>
+        <text x="135" y="206" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">reserveFunds</text>
+
+        <rect x="290" y="170" width="150" height="52" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="365" y="191" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">2 · Debitar</text>
+        <text x="365" y="206" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">debitAccount</text>
+
+        <rect x="600" y="170" width="150" height="52" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="675" y="191" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">3 · Liquidar PIX</text>
+        <text x="675" y="206" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">settlePix (Celcoin)</text>
+
+        <rect x="830" y="170" width="150" height="52" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="905" y="191" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="10.5" font-weight="600">4 · Confirmar</text>
+        <text x="905" y="206" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">markCompleted</text>
+
+        <!-- commands from orchestrator (down) -->
+        <line x1="470" y1="98" x2="150" y2="170" stroke="#2d3142" stroke-width="1.2" marker-end="url(#s-ink)"/>
+        <line x1="500" y1="98" x2="360" y2="170" stroke="#2d3142" stroke-width="1.2" marker-end="url(#s-ink)"/>
+        <line x1="545" y1="98" x2="670" y2="170" stroke="#2d3142" stroke-width="1.2" marker-end="url(#s-ink)"/>
+        <line x1="575" y1="98" x2="890" y2="170" stroke="#2d3142" stroke-width="1.2" marker-end="url(#s-ink)"/>
+        <text x="300" y="128" text-anchor="middle" fill="#4f5d75" font-family="'Geist Mono',monospace" font-size="8">comandos (passo a passo)</text>
+
+        <!-- compensation flow (if step 3 fails) -->
+        <rect x="290" y="252" width="460" height="34" rx="8" fill="#fdeef0" stroke="#a04b6b" stroke-width="1.1" stroke-dasharray="5,4"/>
+        <text x="520" y="273" text-anchor="middle" fill="#a04b6b" font-family="'Geist Mono',monospace" font-size="9">falha no passo 3 → compensa em ordem reversa: refund → releaseFunds</text>
+        <path d="M 675 222 V 240 H 520 V 252" fill="none" stroke="#a04b6b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#s-red)"/>
+        <path d="M 365 252 V 222" fill="none" stroke="#a04b6b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#s-red)"/>
+        <path d="M 135 252 H 290 M 135 252 V 222" fill="none" stroke="#a04b6b" stroke-width="1.2" stroke-dasharray="4,3" marker-end="url(#s-red)"/>
+      </svg>
+
+      <div class="code-grid">
+
+        <!-- Orchestrated saga code -->
+        <div class="code-block layer--app">
+          <div class="code-head"><span class="num">1</span><span class="layer-name">Saga Orquestrada · com compensações</span><span class="file">use-cases/payment.saga.ts</span></div>
+<pre><code><span class="k">type</span> <span class="ty">Step</span> = { <span class="fn">run</span>: () =&gt; <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt;; <span class="fn">compensate</span>: () =&gt; <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; };
+
+<span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">PaymentSaga</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> funds: <span class="ty">FundsPort</span>,
+    <span class="k">private readonly</span> account: <span class="ty">AccountPort</span>,
+    <span class="k">private readonly</span> pix: <span class="ty">PixGateway</span>,
+  ) {}
+
+  <span class="k">async</span> <span class="fn">execute</span>(p: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">Result</span>&lt;<span class="ty">void</span>, <span class="ty">BusinessError</span>&gt;&gt; {
+    <span class="k">const</span> steps: <span class="ty">Step</span>[] = [
+      { <span class="fn">run</span>: () =&gt; <span class="k">this</span>.funds.<span class="fn">reserve</span>(p),   <span class="fn">compensate</span>: () =&gt; <span class="k">this</span>.funds.<span class="fn">release</span>(p) },
+      { <span class="fn">run</span>: () =&gt; <span class="k">this</span>.account.<span class="fn">debit</span>(p),   <span class="fn">compensate</span>: () =&gt; <span class="k">this</span>.account.<span class="fn">refund</span>(p) },
+      { <span class="fn">run</span>: () =&gt; <span class="k">this</span>.pix.<span class="fn">dispatch</span>(p),     <span class="fn">compensate</span>: () =&gt; <span class="ty">Promise</span>.<span class="fn">resolve</span>() },
+    ];
+
+    <span class="k">const</span> done: <span class="ty">Step</span>[] = [];
+    <span class="k">try</span> {
+      <span class="k">for</span> (<span class="k">const</span> step <span class="k">of</span> steps) {
+        <span class="k">await</span> step.<span class="fn">run</span>();          <span class="cm">// cada passo é idempotente</span>
+        done.<span class="fn">push</span>(step);
+      }
+      <span class="k">return</span> <span class="fn">ok</span>(<span class="k">undefined</span>);
+    } <span class="k">catch</span> (e) {
+      <span class="cm">// desfaz na ordem reversa apenas o que já rodou</span>
+      <span class="k">for</span> (<span class="k">const</span> step <span class="k">of</span> done.<span class="fn">reverse</span>()) <span class="k">await</span> step.<span class="fn">compensate</span>();
+      <span class="k">return</span> <span class="fn">err</span>({ type: <span class="st">'SAGA_ABORTED'</span>, message: <span class="ty">String</span>(e) });
+    }
+  }
+}</code></pre>
+        </div>
+
+      </div>
+
+      <!-- Choreographed diagram (no code) -->
+      <p class="flow-sub" style="margin-top:2rem;"><strong>Coreografada</strong> — sem coordenador: cada serviço publica um evento ao concluir seu passo, e o próximo serviço reage. Não há um lugar único que "conhece" a saga inteira; o fluxo emerge da cadeia de eventos. Simples para poucos passos, mas fica difícil de rastrear conforme cresce.</p>
+
+      <svg viewBox="0 0 1040 250" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Saga coreografada: serviços reagindo a eventos em cadeia">
+        <defs>
+          <marker id="ch-evt" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#d98a94"/></marker>
+          <marker id="ch-red" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto"><polygon points="0 0, 9 3.5, 0 7" fill="#a04b6b"/></marker>
+        </defs>
+        <rect width="100%" height="100%" fill="#f5f5f5"/>
+        <text x="24" y="28" fill="#33506b" font-family="'Geist Mono',monospace" font-size="10" font-weight="600" letter-spacing="0.06em">COREOGRAFADA · sem coordenador · dirigida por eventos</text>
+
+        <!-- Services -->
+        <rect x="40" y="70" width="150" height="56" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="115" y="92" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Payments</text>
+        <text x="115" y="108" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">cria pagamento</text>
+
+        <rect x="310" y="70" width="150" height="56" rx="8" fill="#bcd8ee" stroke="#2d3142" stroke-width="1"/>
+        <text x="385" y="92" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Accounts</text>
+        <text x="385" y="108" text-anchor="middle" fill="#33506b" font-family="'Geist Mono',monospace" font-size="8">debita saldo</text>
+
+        <rect x="580" y="70" width="150" height="56" rx="8" fill="#f9f0b8" stroke="#2d3142" stroke-width="1"/>
+        <text x="655" y="92" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">PIX Settle</text>
+        <text x="655" y="108" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="8">liquida na Celcoin</text>
+
+        <rect x="850" y="70" width="150" height="56" rx="8" fill="#bfe3c6" stroke="#2d3142" stroke-width="1"/>
+        <text x="925" y="92" text-anchor="middle" fill="#2d3142" font-family="'Geist',sans-serif" font-size="11" font-weight="600">Ledger</text>
+        <text x="925" y="108" text-anchor="middle" fill="#3d5a45" font-family="'Geist Mono',monospace" font-size="8">registra entrada</text>
+
+        <!-- event-chain forward -->
+        <line x1="190" y1="90" x2="310" y2="90" stroke="#d98a94" stroke-width="1.4" marker-end="url(#ch-evt)"/>
+        <line x1="460" y1="90" x2="580" y2="90" stroke="#d98a94" stroke-width="1.4" marker-end="url(#ch-evt)"/>
+        <line x1="730" y1="90" x2="850" y2="90" stroke="#d98a94" stroke-width="1.4" marker-end="url(#ch-evt)"/>
+        <text x="250" y="82" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="7.5">PaymentCreated</text>
+        <text x="520" y="82" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="7.5">AccountDebited</text>
+        <text x="790" y="82" text-anchor="middle" fill="#8a4c54" font-family="'Geist Mono',monospace" font-size="7.5">PixSettled</text>
+
+        <!-- compensation events (reverse) -->
+        <line x1="580" y1="118" x2="460" y2="118" stroke="#a04b6b" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#ch-red)"/>
+        <line x1="310" y1="118" x2="190" y2="118" stroke="#a04b6b" stroke-width="1.3" stroke-dasharray="5,4" marker-end="url(#ch-red)"/>
+        <text x="520" y="140" text-anchor="middle" fill="#a04b6b" font-family="'Geist Mono',monospace" font-size="7.5">PixFailed → refund</text>
+        <text x="250" y="140" text-anchor="middle" fill="#a04b6b" font-family="'Geist Mono',monospace" font-size="7.5">AccountRefunded → release</text>
+
+        <!-- broker note -->
+        <rect x="40" y="176" width="960" height="44" rx="10" fill="#f9f0b8" opacity="0.35" stroke="#c9a94a" stroke-width="1" stroke-dasharray="6,4"/>
+        <text x="520" y="194" text-anchor="middle" fill="#7a5f10" font-family="'Geist Mono',monospace" font-size="9" font-weight="600">todos publicam/assinam no mesmo broker (SNS/SQS) — cada serviço só conhece seus próprios eventos</text>
+        <text x="520" y="210" text-anchor="middle" fill="#7a8399" font-family="'Geist Mono',monospace" font-size="8.5">compensação = evento de falha que dispara o desfazer no serviço anterior</text>
+      </svg>
+
+      <p class="flow-sub" style="margin-top:1.5rem;"><strong>Quando usar cada uma?</strong> <em>Orquestrada</em> quando o fluxo é complexo, precisa de visibilidade central, timeouts e retries coordenados — o coordenador vira uma state machine testável (seu caso no Buni para fluxos de pagamento com vários passos). <em>Coreografada</em> quando são poucos passos e baixo acoplamento importa mais que rastreabilidade. Em ambas: passos <strong>idempotentes</strong> e compensações <strong>semânticas</strong> (um estorno, não um "delete") são obrigatórios.</p>
+    </section>
+
+    <footer>Clean Architecture · DDD · Hexagonal · Feature-First · Result · Messaging · Saga · editorial diagram</footer>
+
+  </div>
+</body>
+</html>

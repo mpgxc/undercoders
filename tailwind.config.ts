@@ -20,6 +20,15 @@ const config: Config = {
         "accent-7": "#333",
         success: "#0070f3",
         cyan: "#79FFE1",
+        // Undercoders brand accent — a "terminal" emerald that reads on light and dark.
+        brand: {
+          DEFAULT: "#10b981",
+          dark: "#059669",
+          light: "#34d399",
+        },
+      },
+      fontFamily: {
+        mono: ["var(--font-mono)", "ui-monospace", "SFMono-Regular", "monospace"],
       },
       spacing: {
         28: "7rem",
