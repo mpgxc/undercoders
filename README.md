@@ -76,6 +76,30 @@ Esses posts são renderizados em um _iframe_ isolado, preservando 100% do estilo
 e das fontes originais sem interferir no CSS do blog. Veja
 `_posts/como-eu-penso-arquitetura-e-design-backend.html` como referência.
 
+## Comentários (Giscus)
+
+Cada post tem uma seção de comentários via
+[Giscus](https://giscus.app) — comentários ficam armazenados como **GitHub
+Discussions** do repositório, sem backend nem banco de dados. Cada post recebe
+sua própria thread automaticamente (via `data-mapping="pathname"`).
+
+Já vem **configurado** para o repositório `mpgxc/undercoders` (categoria
+`General`) em `src/lib/constants.ts`. Requisitos, caso replique em outro repo:
+
+1. Habilite **Discussions** no repositório (Settings → General → Features).
+2. Instale o app [giscus](https://github.com/apps/giscus) no repositório.
+3. Crie uma categoria de Discussions.
+4. Em [giscus.app](https://giscus.app), gere o `repo-id` e o `category-id`.
+
+Para apontar para outro repositório/categoria sem editar o código, sobrescreva
+via variáveis de ambiente (veja `.env.example`), no `.env.local` ou na Vercel:
+
+```
+NEXT_PUBLIC_GISCUS_REPO_ID=...
+NEXT_PUBLIC_GISCUS_CATEGORY_ID=...
+NEXT_PUBLIC_GISCUS_CATEGORY=...
+```
+
 ## Créditos
 
 Estrutura inicial baseada no

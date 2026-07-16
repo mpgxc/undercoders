@@ -10,6 +10,7 @@ import { PostBody } from "@/app/_components/post-body";
 import { PostHeader } from "@/app/_components/post-header";
 import { PostTags } from "@/app/_components/post-tags";
 import { RichPostFrame } from "@/app/_components/rich-post-frame";
+import { Comments } from "@/app/_components/comments";
 import DateFormatter from "@/app/_components/date-formatter";
 
 export default async function Post(props: Params) {
@@ -42,9 +43,14 @@ export default async function Post(props: Params) {
             </div>
           </article>
         </Container>
-        <div className="mx-auto max-w-6xl px-5 mb-32">
+        <div className="mx-auto max-w-6xl px-5 mb-16">
           <RichPostFrame html={post.content} title={post.title} />
         </div>
+        <Container>
+          <div className="mb-32">
+            <Comments />
+          </div>
+        </Container>
       </main>
     );
   }
@@ -66,6 +72,7 @@ export default async function Post(props: Params) {
           />
           <PostBody content={content} />
         </article>
+        <Comments />
       </Container>
     </main>
   );
