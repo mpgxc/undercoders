@@ -76,6 +76,36 @@ Esses posts são renderizados em um _iframe_ isolado, preservando 100% do estilo
 e das fontes originais sem interferir no CSS do blog. Veja
 `_posts/como-eu-penso-arquitetura-e-design-backend.html` como referência.
 
+### Rascunhos (draft)
+
+Marque um post com `draft: true` no front matter para mantê-lo **oculto em
+produção**:
+
+```yaml
+draft: true
+```
+
+- No `npm run dev` (e em qualquer build com `SHOW_DRAFTS=true`, útil para
+  _preview deploys_ na Vercel) o rascunho aparece normalmente, com um selo
+  **rascunho** nos cards e no topo do post.
+- No `npm run build` de produção o post é excluído das listagens, das tags e das
+  rotas — e acessá-lo diretamente retorna 404.
+
+Publicar = remover a linha `draft: true`.
+
+### Validação (CI)
+
+`npm run validate:posts` checa o front matter de todos os posts: campos
+obrigatórios, data válida, ao menos uma tag e a existência real das imagens
+(capa, avatar e OG) em `public/`. A GitHub Action `Validar posts`
+(`.github/workflows/validate-posts.yml`) roda essa checagem em todo PR que toca
+`_posts/` ou `public/assets/`, barrando posts com metadados quebrados antes do
+merge. Rode localmente antes de commitar:
+
+```bash
+npm run validate:posts
+```
+
 ## Comentários (Giscus)
 
 Cada post tem uma seção de comentários via

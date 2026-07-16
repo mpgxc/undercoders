@@ -23,6 +23,7 @@ export function MoreStories({ posts, heading = "Mais publicações" }: Props) {
             slug={post.slug}
             excerpt={post.excerpt}
             tags={post.tags}
+            draft={post.draft}
           />
         ))}
       </div>

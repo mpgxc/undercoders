@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "validate:posts": "node scripts/validate-posts.mjs"
   },
   "dependencies": {
     "classnames": "^2.5.1",
