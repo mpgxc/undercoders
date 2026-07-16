@@ -5,6 +5,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
+    "new:post": "node scripts/new-post.mjs",
     "validate:posts": "node scripts/validate-posts.mjs"
   },
   "dependencies": {

@@ -43,6 +43,21 @@ src/
 Cada arquivo em `_posts/` vira uma publicação. O nome do arquivo (sem extensão)
 é o slug da URL.
 
+### Gerador (`npm run new:post`)
+
+A forma mais rápida de começar um post: o gerador cria o arquivo com o front
+matter preenchido **e** uma capa SVG on-brand com o título.
+
+```bash
+npm run new:post -- "Meu título aqui"
+npm run new:post -- "Meu título" --tags "Arquitetura de Sistemas, IA"
+npm run new:post -- "Meu título" --publish   # já publicado (sem draft)
+```
+
+Sem argumentos, ele pergunta o título e as tags interativamente. Por padrão o
+post nasce como **rascunho** (`draft: true`) — publique removendo essa linha.
+Gera `_posts/<slug>.md` e `public/assets/blog/<slug>/cover.svg`.
+
 ### Post em Markdown (`.md`)
 
 Adicione um arquivo com _front matter_:
