@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getAllPosts, getPostBySlug } from "@/lib/api";
+import { getAllPosts, getPostBySlug, isHiddenDraft } from "@/lib/api";
 import { SITE_NAME } from "@/lib/constants";
 import markdownToHtml from "@/lib/markdownToHtml";
 import Alert from "@/app/_components/alert";
@@ -9,6 +9,7 @@ import Header from "@/app/_components/header";
 import { PostBody } from "@/app/_components/post-body";
 import { PostHeader } from "@/app/_components/post-header";
 import { PostTags } from "@/app/_components/post-tags";
+import { DraftBadge } from "@/app/_components/draft-badge";
 import { RichPostFrame } from "@/app/_components/rich-post-frame";
 import { Comments } from "@/app/_components/comments";
 import DateFormatter from "@/app/_components/date-formatter";
@@ -17,7 +18,8 @@ export default async function Post(props: Params) {
   const params = await props.params;
   const post = getPostBySlug(params.slug);
 
-  if (!post) {
+  // Drafts 404 in production; they render normally in dev / preview.
+  if (!post || isHiddenDraft(post)) {
     return notFound();
   }
 
@@ -31,6 +33,7 @@ export default async function Post(props: Params) {
           <Header />
           <article className="mb-24">
             <div className="mb-8 max-w-3xl">
+              {post.draft && <DraftBadge className="mb-4" />}
               <h1 className="text-4xl md:text-6xl font-bold tracking-tighter leading-tight mb-4">
                 {post.title}
               </h1>
@@ -69,6 +72,7 @@ export default async function Post(props: Params) {
             date={post.date}
             author={post.author}
             tags={post.tags}
+            draft={post.draft}
           />
           <PostBody content={content} />
         </article>

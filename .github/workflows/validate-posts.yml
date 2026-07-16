@@ -1,0 +1,32 @@
+name: Validar posts
+
+on:
+  pull_request:
+    paths:
+      - "_posts/**"
+      - "public/assets/**"
+      - "scripts/validate-posts.mjs"
+      - ".github/workflows/validate-posts.yml"
+  push:
+    branches: [main]
+    paths:
+      - "_posts/**"
+      - "public/assets/**"
+      - "scripts/validate-posts.mjs"
+
+jobs:
+  validate:
+    name: Frontmatter dos posts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Instalar dependências
+        run: npm install --no-audit --no-fund
+
+      - name: Validar frontmatter
+        run: npm run validate:posts

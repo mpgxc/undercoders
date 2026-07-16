@@ -16,5 +16,7 @@ export type Post = {
   tags: string[];
   /** How `content` should be rendered: parsed Markdown or a self-contained HTML document. */
   format: PostFormat;
+  /** When true, the post is hidden in production builds (visible only in dev / preview). */
+  draft?: boolean;
   preview?: boolean;
 };

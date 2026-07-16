@@ -43,6 +43,21 @@ src/
 Cada arquivo em `_posts/` vira uma publicação. O nome do arquivo (sem extensão)
 é o slug da URL.
 
+### Gerador (`npm run new:post`)
+
+A forma mais rápida de começar um post: o gerador cria o arquivo com o front
+matter preenchido **e** uma capa SVG on-brand com o título.
+
+```bash
+npm run new:post -- "Meu título aqui"
+npm run new:post -- "Meu título" --tags "Arquitetura de Sistemas, IA"
+npm run new:post -- "Meu título" --publish   # já publicado (sem draft)
+```
+
+Sem argumentos, ele pergunta o título e as tags interativamente. Por padrão o
+post nasce como **rascunho** (`draft: true`) — publique removendo essa linha.
+Gera `_posts/<slug>.md` e `public/assets/blog/<slug>/cover.svg`.
+
 ### Post em Markdown (`.md`)
 
 Adicione um arquivo com _front matter_:
@@ -75,6 +90,36 @@ com o mesmo _front matter_ no topo, seguido de um **documento HTML completo**.
 Esses posts são renderizados em um _iframe_ isolado, preservando 100% do estilo
 e das fontes originais sem interferir no CSS do blog. Veja
 `_posts/como-eu-penso-arquitetura-e-design-backend.html` como referência.
+
+### Rascunhos (draft)
+
+Marque um post com `draft: true` no front matter para mantê-lo **oculto em
+produção**:
+
+```yaml
+draft: true
+```
+
+- No `npm run dev` (e em qualquer build com `SHOW_DRAFTS=true`, útil para
+  _preview deploys_ na Vercel) o rascunho aparece normalmente, com um selo
+  **rascunho** nos cards e no topo do post.
+- No `npm run build` de produção o post é excluído das listagens, das tags e das
+  rotas — e acessá-lo diretamente retorna 404.
+
+Publicar = remover a linha `draft: true`.
+
+### Validação (CI)
+
+`npm run validate:posts` checa o front matter de todos os posts: campos
+obrigatórios, data válida, ao menos uma tag e a existência real das imagens
+(capa, avatar e OG) em `public/`. A GitHub Action `Validar posts`
+(`.github/workflows/validate-posts.yml`) roda essa checagem em todo PR que toca
+`_posts/` ou `public/assets/`, barrando posts com metadados quebrados antes do
+merge. Rode localmente antes de commitar:
+
+```bash
+npm run validate:posts
+```
 
 ## Comentários (Giscus)
 

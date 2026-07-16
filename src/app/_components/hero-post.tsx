@@ -4,6 +4,7 @@ import { type Author } from "@/interfaces/author";
 import Link from "next/link";
 import DateFormatter from "./date-formatter";
 import { PostTags } from "./post-tags";
+import { DraftBadge } from "./draft-badge";
 
 type Props = {
   title: string;
@@ -13,6 +14,7 @@ type Props = {
   author: Author;
   slug: string;
   tags?: string[];
+  draft?: boolean;
 };
 
 export function HeroPost({
@@ -23,6 +25,7 @@ export function HeroPost({
   author,
   slug,
   tags,
+  draft,
 }: Props) {
   return (
     <section>
@@ -31,7 +34,10 @@ export function HeroPost({
       </div>
       <div className="md:grid md:grid-cols-2 md:gap-x-16 lg:gap-x-8 mb-20 md:mb-28">
         <div>
-          {tags && tags.length > 0 && <PostTags tags={tags} className="mb-4" />}
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {draft && <DraftBadge />}
+            {tags && tags.length > 0 && <PostTags tags={tags} />}
+          </div>
           <h3 className="mb-4 text-4xl lg:text-5xl leading-tight">
             <Link
               href={`/posts/${slug}`}

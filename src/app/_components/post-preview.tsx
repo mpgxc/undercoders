@@ -4,6 +4,7 @@ import Avatar from "./avatar";
 import CoverImage from "./cover-image";
 import DateFormatter from "./date-formatter";
 import { PostTags } from "./post-tags";
+import { DraftBadge } from "./draft-badge";
 
 type Props = {
   title: string;
@@ -13,6 +14,7 @@ type Props = {
   author: Author;
   slug: string;
   tags?: string[];
+  draft?: boolean;
 };
 
 export function PostPreview({
@@ -23,13 +25,17 @@ export function PostPreview({
   author,
   slug,
   tags,
+  draft,
 }: Props) {
   return (
     <div>
       <div className="mb-5">
         <CoverImage slug={slug} title={title} src={coverImage} />
       </div>
-      {tags && tags.length > 0 && <PostTags tags={tags} className="mb-3" />}
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {draft && <DraftBadge />}
+        {tags && tags.length > 0 && <PostTags tags={tags} />}
+      </div>
       <h3 className="text-3xl mb-3 leading-snug">
         <Link
           href={`/posts/${slug}`}
