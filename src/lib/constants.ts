@@ -21,24 +21,21 @@ export const HOME_OG_IMAGE_URL = "/assets/og-default.svg";
 /**
  * Configuração do Giscus (comentários via GitHub Discussions).
  *
- * `repoId` e `categoryId` NÃO são segredos — são identificadores públicos.
- * Obtenha-os em https://giscus.app após:
- *   1. habilitar Discussions no repositório (Settings → Features → Discussions);
- *   2. instalar o app https://github.com/apps/giscus no repositório;
- *   3. criar uma categoria de Discussions (ex.: "Comments", tipo Announcement).
- *
- * Defina-os como variáveis de ambiente (ex.: no painel da Vercel):
+ * `repoId` e `categoryId` NÃO são segredos — são identificadores públicos
+ * (aparecem no próprio widget em qualquer site). Os valores abaixo já vêm
+ * configurados para o repositório mpgxc/undercoders, gerados em
+ * https://giscus.app. Para apontar para outro repositório/categoria, sobrescreva
+ * via variáveis de ambiente (ex.: no painel da Vercel):
  *   NEXT_PUBLIC_GISCUS_REPO_ID
  *   NEXT_PUBLIC_GISCUS_CATEGORY_ID
- *
- * Enquanto não estiverem definidos, a seção de comentários simplesmente não é
- * renderizada — nada quebra.
+ *   NEXT_PUBLIC_GISCUS_CATEGORY  (opcional — nome da categoria)
  */
 export const GISCUS = {
   repo: "mpgxc/undercoders" as `${string}/${string}`,
-  repoId: process.env.NEXT_PUBLIC_GISCUS_REPO_ID ?? "",
-  category: process.env.NEXT_PUBLIC_GISCUS_CATEGORY ?? "Comments",
-  categoryId: process.env.NEXT_PUBLIC_GISCUS_CATEGORY_ID ?? "",
+  repoId: process.env.NEXT_PUBLIC_GISCUS_REPO_ID ?? "R_kgDOTadENg",
+  category: process.env.NEXT_PUBLIC_GISCUS_CATEGORY ?? "General",
+  categoryId:
+    process.env.NEXT_PUBLIC_GISCUS_CATEGORY_ID ?? "DIC_kwDOTadENs4DBVbH",
 };
 
 export const isGiscusConfigured = () =>

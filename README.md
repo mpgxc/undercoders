@@ -83,23 +83,22 @@ Cada post tem uma seção de comentários via
 Discussions** do repositório, sem backend nem banco de dados. Cada post recebe
 sua própria thread automaticamente (via `data-mapping="pathname"`).
 
-Para ativar:
+Já vem **configurado** para o repositório `mpgxc/undercoders` (categoria
+`General`) em `src/lib/constants.ts`. Requisitos, caso replique em outro repo:
 
 1. Habilite **Discussions** no repositório (Settings → General → Features).
 2. Instale o app [giscus](https://github.com/apps/giscus) no repositório.
-3. Crie uma categoria de Discussions (ex.: `Comments`, tipo _Announcement_).
-4. Em [giscus.app](https://giscus.app), informe o repositório e a categoria e
-   copie o `repo-id` e o `category-id` gerados.
-5. Defina as variáveis de ambiente (veja `.env.example`) — no `.env.local` ou no
-   painel da Vercel:
+3. Crie uma categoria de Discussions.
+4. Em [giscus.app](https://giscus.app), gere o `repo-id` e o `category-id`.
 
-   ```
-   NEXT_PUBLIC_GISCUS_REPO_ID=...
-   NEXT_PUBLIC_GISCUS_CATEGORY_ID=...
-   ```
+Para apontar para outro repositório/categoria sem editar o código, sobrescreva
+via variáveis de ambiente (veja `.env.example`), no `.env.local` ou na Vercel:
 
-Enquanto essas variáveis não estiverem definidas, a seção de comentários
-simplesmente não é renderizada — nada quebra.
+```
+NEXT_PUBLIC_GISCUS_REPO_ID=...
+NEXT_PUBLIC_GISCUS_CATEGORY_ID=...
+NEXT_PUBLIC_GISCUS_CATEGORY=...
+```
 
 ## Créditos
 
