@@ -1,5 +1,5 @@
 import Container from "@/app/_components/container";
-import { EXAMPLE_PATH } from "@/lib/constants";
+import { GITHUB_URL } from "@/lib/constants";
 import cn from "classnames";
 
 type Props = {
@@ -9,7 +9,7 @@ type Props = {
 const Alert = ({ preview }: Props) => {
   return (
     <div
-      className={cn("border-b dark:bg-slate-800", {
+      className={cn("border-b ", {
         "bg-neutral-800 border-neutral-800 text-white": preview,
         "bg-neutral-50 border-neutral-200": !preview,
       })}
@@ -18,23 +18,25 @@ const Alert = ({ preview }: Props) => {
         <div className="py-2 text-center text-sm">
           {preview ? (
             <>
-              This page is a preview.{" "}
+              Esta página é uma pré-visualização.{" "}
               <a
                 href="/api/exit-preview"
-                className="underline hover:text-teal-300 duration-200 transition-colors"
+                className="underline hover:text-brand-light duration-200 transition-colors"
               >
-                Click here
+                Clique aqui
               </a>{" "}
-              to exit preview mode.
+              para sair do modo de preview.
             </>
           ) : (
             <>
-              The source code for this blog is{" "}
+              O código-fonte deste blog está{" "}
               <a
-                href={`https://github.com/vercel/next.js/tree/canary/examples/${EXAMPLE_PATH}`}
-                className="underline hover:text-blue-600 duration-200 transition-colors"
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-brand-dark duration-200 transition-colors"
               >
-                available on GitHub
+                disponível no GitHub
               </a>
               .
             </>
