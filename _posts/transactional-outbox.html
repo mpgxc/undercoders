@@ -1,0 +1,868 @@
+---
+title: "O evento que nunca aconteceu: Transactional Outbox na prática"
+excerpt: "Seu save() foi commitado, seu publish() falhou — e para o resto do sistema aquele pagamento não existe. Um mergulho no problema do dual-write e no padrão que o resolve: a tabela outbox, o relay com SKIP LOCKED, as duas camadas de idempotência e o Inbox Pattern do lado de quem consome."
+coverImage: "/assets/blog/transactional-outbox/cover.svg"
+date: "2026-07-22T12:00:00.000Z"
+author:
+  name: "mpgxc"
+  picture: "/assets/blog/authors/mpgxc.svg"
+ogImage:
+  url: "/assets/blog/transactional-outbox/cover.svg"
+tags:
+  - "Arquitetura de Sistemas"
+  - "Padrões de Projeto"
+  - "Backend"
+  - "Sistemas Distribuídos"
+draft: true
+---
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Transactional Outbox — o evento que nunca aconteceu</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --color-paper:   #f5f5f5;
+    --color-paper-2: #ececec;
+    --color-ink:     #2d3142;
+    --color-muted:   #4f5d75;
+    --color-soft:    #7a8399;
+    --color-accent:  #eb6c36;
+    --color-link:    #2e5aa8;
+    --color-rule:    rgba(45,49,66,0.12);
+    --font-sans:  'Geist', system-ui, sans-serif;
+    --font-serif: 'Instrument Serif', serif;
+    --font-mono:  'Geist Mono', ui-monospace, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: var(--color-paper);
+    color: var(--color-ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 3.5rem 2rem;
+    line-height: 1.6;
+  }
+
+  .frame { width: 100%; max-width: 760px; }
+
+  /* ── Header ── */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-accent);
+    margin: 0 0 1rem;
+  }
+  h1 {
+    font-family: var(--font-serif);
+    font-size: 3.1rem;
+    font-weight: 400;
+    line-height: 1.08;
+    letter-spacing: -0.01em;
+    margin: 0 0 1.1rem;
+  }
+  h1 em { font-style: italic; color: var(--color-accent); }
+
+  .standfirst {
+    font-size: 1.08rem;
+    color: var(--color-muted);
+    margin: 0 0 1.6rem;
+    max-width: 62ch;
+  }
+
+  .byline {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--color-soft);
+    letter-spacing: 0.04em;
+    padding-bottom: 2.2rem;
+    border-bottom: 1px solid var(--color-rule);
+  }
+
+  /* ── Prose ── */
+  h2 {
+    font-family: var(--font-serif);
+    font-size: 1.95rem;
+    font-weight: 400;
+    line-height: 1.15;
+    margin: 3.4rem 0 1rem;
+  }
+  h3 {
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    margin: 2.4rem 0 0.7rem;
+  }
+  p { margin: 0 0 1.15rem; max-width: 68ch; }
+  a { color: var(--color-link); text-decoration: none; border-bottom: 1px solid rgba(46,90,168,0.3); }
+  a:hover { border-bottom-color: var(--color-link); }
+  strong { font-weight: 600; }
+
+  code {
+    font-family: var(--font-mono);
+    font-size: 0.82em;
+    background: var(--color-paper-2);
+    border: 1px solid var(--color-rule);
+    border-radius: 4px;
+    padding: 0.1em 0.34em;
+  }
+
+  ul, ol { margin: 0 0 1.15rem; padding-left: 1.2rem; max-width: 68ch; }
+  li { margin-bottom: 0.5rem; }
+  li::marker { color: var(--color-soft); }
+
+  /* ── Tradução de termos em inglês ── */
+  .gloss {
+    color: var(--color-soft);
+    font-size: 0.9em;
+  }
+  .gloss em { font-style: italic; }
+
+  .gloss-lead {
+    color: var(--color-muted);
+    font-size: 0.95rem;
+    border-left: 2px solid var(--color-rule);
+    padding-left: 0.9rem;
+    margin: -0.3rem 0 1.4rem;
+  }
+  .gloss-lead em { font-style: italic; color: var(--color-ink); }
+
+  /* ── Callout ── */
+  .callout {
+    border-left: 2px solid var(--color-accent);
+    background: #fbfbfa;
+    padding: 1rem 1.2rem;
+    margin: 1.8rem 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .callout p { margin: 0; font-size: 0.95rem; color: var(--color-muted); }
+  .callout strong { color: var(--color-ink); }
+
+  /* ── Code blocks ── */
+  .code-block {
+    background: #fbfbfa;
+    border: 1px solid var(--color-rule);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 1.6rem 0;
+  }
+  .code-head {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.7rem 1rem;
+    border-bottom: 1px solid var(--color-rule);
+    background: var(--color-paper);
+  }
+  .code-head .layer-name {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--layer, var(--color-muted));
+  }
+  .code-head .file {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    color: var(--color-soft);
+    margin-left: auto;
+  }
+  .code-block pre {
+    margin: 0;
+    padding: 1rem 1.15rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.735rem;
+    line-height: 1.65;
+  }
+  .code-block code {
+    font-family: var(--font-mono);
+    white-space: pre;
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: inherit;
+  }
+  .layer--app   { --layer: #d98a94; }
+  .layer--infra { --layer: #7fa8cf; }
+  .layer--pres  { --layer: #4c9f70; }
+  .layer--dom   { --layer: #d4b73f; }
+
+  /* token colors — muted editorial palette */
+  .k  { color: #a05a2c; }
+  .ty { color: #2e6b58; }
+  .fn { color: #3b5aa0; }
+  .st { color: #8a6a1a; }
+  .cm { color: #9aa0ac; font-style: italic; }
+  .de { color: #a04b6b; }
+  .nu { color: #8a4c54; }
+
+  /* ── Figure ── */
+  figure { margin: 2.6rem 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--color-soft);
+    text-align: center;
+    margin-top: 0.8rem;
+    line-height: 1.5;
+  }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.6rem 0;
+    font-size: 0.88rem;
+  }
+  th, td {
+    text-align: left;
+    padding: 0.6rem 0.8rem;
+    border-bottom: 1px solid var(--color-rule);
+    vertical-align: top;
+  }
+  th {
+    font-family: var(--font-mono);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-soft);
+  }
+  td code { font-size: 0.78em; }
+
+  /* ── Footer ── */
+  footer {
+    margin-top: 4rem;
+    padding-top: 1.6rem;
+    border-top: 1px solid var(--color-rule);
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    color: var(--color-soft);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 640px) {
+    body { padding: 2rem 1.15rem; }
+    h1 { font-size: 2.2rem; }
+    h2 { font-size: 1.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="frame">
+
+  <p class="eyebrow">Arquitetura · Sistemas distribuídos</p>
+  <h1>O evento que <em>nunca aconteceu</em></h1>
+  <p class="standfirst">
+    Seu <code>save()</code> foi commitado. Seu <code>publish()</code> falhou. Para o resto do sistema,
+    aquele pagamento simplesmente não existe. Isso se chama <em>dual-write</em>
+    <span class="gloss">(escrita dupla)</span>, e o Transactional Outbox
+    <span class="gloss">(caixa de saída transacional)</span> é a maneira mais comum de resolver.
+  </p>
+  <p class="byline">TypeScript · NestJS · PostgreSQL · SQS/SNS</p>
+
+  <h2>O bug que só aparece em produção</h2>
+
+  <p>
+    Todo backend que grava no banco e publica um evento tem essa linha em algum lugar:
+  </p>
+
+  <div class="code-block layer--app">
+    <div class="code-head"><span class="layer-name">o problema</span><span class="file">create-payment.use-case.ts</span></div>
+<pre><code><span class="k">await</span> <span class="k">this</span>.repository.<span class="fn">save</span>(payment);   <span class="cm">// ✅ commitado</span>
+<span class="k">await</span> <span class="k">this</span>.broker.<span class="fn">publish</span>(event);      <span class="cm">// ❌ timeout</span></code></pre>
+  </div>
+
+  <p>
+    Funciona centenas de vezes por dia. Até o broker ficar dois segundos fora do ar.
+    Aí o pagamento existe no seu banco, mas o serviço de ledger nunca ficou sabendo e a notificação
+    nunca saiu. No dia seguinte, a conciliação acusa uma divergência e alguém passa a manhã
+    tentando entender o que aconteceu.
+  </p>
+
+  <p>
+    Inverter a ordem não resolve — só troca o jeito de quebrar. Se você publicar primeiro e a
+    transação der rollback, o evento já saiu falando de um pagamento que nunca foi gravado. Os
+    consumidores vão processar algo que não existe.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>A raiz do problema:</strong> não existe transação atômica entre um banco de dados e um
+      <em>message broker</em> <span class="gloss">(intermediador de mensagens)</span>. São dois
+      sistemas separados, cada um com o seu próprio commit. Não importa a ordem que você escolher:
+      sempre vai existir um instante em que o primeiro já aconteceu e o segundo ainda não.
+    </p>
+  </div>
+
+  <p>
+    Antes de ir para a solução, vale descartar o que <em>não</em> funciona. Um
+    <code>try/catch</code> em volta do <code>publish</code> não ajuda: se a publicação falhou, ela
+    vai falhar de novo dentro do <code>catch</code>. Guardar o evento numa fila em memória para
+    tentar mais tarde também não, porque essa fila desaparece quando o processo reinicia. E
+    transação distribuída (2PC/XA) entre Postgres e SQS nem é suportada.
+  </p>
+
+  <h2>A ideia central</h2>
+
+  <p>
+    Se você não consegue escrever nos dois sistemas de forma atômica, escreva em
+    <strong>um só</strong>. Em vez de publicar o evento, grave-o numa tabela <code>outbox</code>
+    <strong>na mesma transação</strong> que salva o estado. A partir daí, ou os dois existem, ou
+    nenhum dos dois existe — e quem garante isso é o banco, não o seu código.
+  </p>
+
+  <p>
+    A publicação vira um segundo passo, separado e que pode ser repetido: um processo — o
+    <em>relay</em> <span class="gloss">(retransmissor)</span> — lê as linhas pendentes e publica no
+    broker. Se falhar, ele tenta de novo na próxima rodada. A linha continua lá, esperando.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 900 760" xmlns="http://www.w3.org/2000/svg" font-family="'Geist', -apple-system, 'Segoe UI', Roboto, system-ui, sans-serif">
+      <defs>
+        <marker id="arrow" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto">
+          <path d="M0,0 L8,3.5 L0,7 Z" fill="#a8a29a"/>
+        </marker>
+        <marker id="arrow-green" markerWidth="9" markerHeight="7" refX="7.5" refY="3.5" orient="auto">
+          <path d="M0,0 L8,3.5 L0,7 Z" fill="#1a9970"/>
+        </marker>
+      </defs>
+
+      <rect width="900" height="760" fill="#f5f5f5"/>
+
+      <text x="450" y="48" fill="#8a8a8a" font-size="15" font-weight="600" text-anchor="middle"
+            letter-spacing="0.12em" style="text-transform:uppercase">transactional outbox</text>
+      <text x="450" y="66" fill="#b0aca4" font-size="11" text-anchor="middle">o evento e o estado nascem juntos — ou nenhum dos dois existe</text>
+
+      <!-- boundary: the atomic transaction -->
+      <rect x="152" y="136" width="440" height="216" rx="12" fill="none"
+            stroke="#8b7fd4" stroke-width="1.25" stroke-dasharray="6,5"/>
+      <rect x="172" y="128" width="186" height="16" fill="#f5f5f5"/>
+      <text x="176" y="141" fill="#8b7fd4" font-size="11" font-weight="600">uma transação · um commit</text>
+
+      <!-- arrows -->
+      <line x1="372" y1="112" x2="372" y2="176" stroke="#a8a29a" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="372" y1="240" x2="372" y2="272" stroke="#a8a29a" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="372" y1="352" x2="372" y2="424" stroke="#a8a29a" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="372" y1="488" x2="372" y2="560" stroke="#a8a29a" stroke-width="1.5" marker-end="url(#arrow)"/>
+      <line x1="372" y1="624" x2="372" y2="688" stroke="#a8a29a" stroke-width="1.5" marker-end="url(#arrow)"/>
+
+      <path d="M 528 456 C 648 456 672 392 672 328 C 672 292 600 300 528 304"
+            fill="none" stroke="#1a9970" stroke-width="2" marker-end="url(#arrow-green)"/>
+
+      <!-- blocks -->
+      <rect x="264" y="72" width="216" height="40" rx="20" fill="#f5f5f5"/>
+      <rect x="264" y="72" width="216" height="40" rx="20" fill="#f1efe8" stroke="#d8d4c4" stroke-width="1.25"/>
+      <text x="372" y="97" fill="#4a4a4a" font-size="15" font-weight="500" text-anchor="middle">use-case</text>
+
+      <rect x="216" y="176" width="312" height="64" rx="10" fill="#f5f5f5"/>
+      <rect x="216" y="176" width="312" height="64" rx="10" fill="#eeedfe" stroke="#b9b5e8" stroke-width="1.25"/>
+      <text x="372" y="204" fill="#3a3560" font-size="15" font-weight="500" text-anchor="middle">payments</text>
+      <text x="372" y="222" fill="#6a63b0" font-size="11" font-weight="500" text-anchor="middle">o estado do agregado</text>
+
+      <rect x="216" y="272" width="312" height="64" rx="10" fill="#f5f5f5"/>
+      <rect x="216" y="272" width="312" height="64" rx="10" fill="#eeedfe" stroke="#b9b5e8" stroke-width="1.25"/>
+      <text x="372" y="300" fill="#3a3560" font-size="15" font-weight="500" text-anchor="middle">outbox</text>
+      <text x="372" y="318" fill="#6a63b0" font-size="11" font-weight="500" text-anchor="middle">o evento · status pending</text>
+
+      <rect x="216" y="424" width="312" height="64" rx="10" fill="#f5f5f5"/>
+      <rect x="216" y="424" width="312" height="64" rx="10" fill="#e1f4ee" stroke="#9dd3c2" stroke-width="1.25"/>
+      <text x="372" y="452" fill="#1f6a56" font-size="15" font-weight="500" text-anchor="middle">relay</text>
+      <text x="372" y="470" fill="#2f8a72" font-size="11" font-weight="500" text-anchor="middle">poller · for update skip locked</text>
+
+      <rect x="216" y="560" width="312" height="64" rx="10" fill="#f5f5f5"/>
+      <rect x="216" y="560" width="312" height="64" rx="10" fill="#e7f1fb" stroke="#a8c8e8" stroke-width="1.25"/>
+      <text x="372" y="588" fill="#2a5580" font-size="15" font-weight="500" text-anchor="middle">broker</text>
+      <text x="372" y="606" fill="#3a70a8" font-size="11" font-weight="500" text-anchor="middle">fan-out · at-least-once</text>
+
+      <rect x="240" y="688" width="264" height="48" rx="24" fill="#f5f5f5"/>
+      <rect x="240" y="688" width="264" height="48" rx="24" fill="#f1efe8" stroke="#d8d4c4" stroke-width="1.25"/>
+      <text x="372" y="710" fill="#4a4a4a" font-size="15" font-weight="500" text-anchor="middle">consumer</text>
+      <text x="372" y="726" fill="#8a8577" font-size="11" font-weight="500" text-anchor="middle">idempotente por messageId</text>
+
+      <!-- arrow labels -->
+      <rect x="386" y="376" width="118" height="16" fill="#f5f5f5"/>
+      <text x="390" y="389" fill="#8a8a8a" font-size="11">lê os pendentes</text>
+
+      <rect x="386" y="512" width="96" height="16" fill="#f5f5f5"/>
+      <text x="390" y="525" fill="#8a8a8a" font-size="11">publica</text>
+
+      <rect x="386" y="648" width="112" height="16" fill="#f5f5f5"/>
+      <text x="390" y="661" fill="#8a8a8a" font-size="11">entrega (≥1 vez)</text>
+
+      <rect x="686" y="320" width="118" height="16" fill="#f5f5f5"/>
+      <text x="690" y="333" fill="#1a9970" font-size="11" font-weight="600">marca published</text>
+    </svg>
+    <figcaption>O estado e o evento são gravados no mesmo commit. A publicação vira um passo separado, que pode ser repetido até dar certo.</figcaption>
+  </figure>
+
+  <h2>A escrita atômica</h2>
+
+  <p>
+    O agregado registra o que aconteceu. O repositório recolhe esses eventos e grava no outbox,
+    junto com o estado. Repare que o agregado nunca publica nada — ele nem sabe que existe um broker.
+  </p>
+
+  <div class="code-block layer--infra">
+    <div class="code-head"><span class="layer-name">escrita atômica</span><span class="file">adapters/typeorm-payment.repository.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">TypeOrmPaymentRepository</span> <span class="k">implements</span> <span class="ty">PaymentRepository</span> {
+  <span class="k">constructor</span>(<span class="k">private readonly</span> dataSource: <span class="ty">DataSource</span>) {}
+
+  <span class="k">async</span> <span class="fn">save</span>(payment: <span class="ty">Payment</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="k">await</span> <span class="k">this</span>.dataSource.<span class="fn">transaction</span>(<span class="k">async</span> (tx) =&gt; {
+      <span class="k">await</span> tx.<span class="fn">save</span>(<span class="ty">PaymentModel</span>, <span class="fn">toModel</span>(payment));
+
+      <span class="k">for</span> (<span class="k">const</span> event <span class="k">of</span> payment.<span class="fn">pullEvents</span>()) {
+        <span class="k">await</span> tx.<span class="fn">insert</span>(<span class="ty">OutboxModel</span>, {
+          id: <span class="fn">randomUUID</span>(),      <span class="cm">// vira o messageId → chave de dedupe</span>
+          type: event.type,        <span class="cm">// 'payment.created'</span>
+          aggregateId: payment.id,
+          payload: event.payload,
+          status: <span class="st">'PENDING'</span>,
+        });
+      }
+    });
+  }
+}</code></pre>
+  </div>
+
+  <p>A tabela é deliberadamente simples:</p>
+
+  <table>
+    <thead>
+      <tr><th>Coluna</th><th>Por quê</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>id</code></td><td>UUID. Vira o <code>messageId</code> publicado — é a chave que o consumidor usa para deduplicar.</td></tr>
+      <tr><td><code>type</code></td><td>O nome do evento de integração. Roteamento e observabilidade dependem disso.</td></tr>
+      <tr><td><code>aggregate_id</code></td><td>Liga o evento ao agregado que o gerou. Quando algo dá errado, é por aqui que você investiga.</td></tr>
+      <tr><td><code>payload</code></td><td><code>jsonb</code>. É um contrato versionado para quem consome — não jogue a entidade inteira aqui.</td></tr>
+      <tr><td><code>status</code></td><td><code>PENDING → PUBLISHED</code>. Índice em <code>(status, created_at)</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>O relay</h2>
+
+  <p>
+    Um <em>poller</em> <span class="gloss">(processo que consulta a tabela de tempos em tempos)</span>
+    lê as linhas pendentes e publica. O detalhe que permite rodar várias réplicas é o
+    <code>FOR UPDATE SKIP LOCKED</code>: sem ele, duas réplicas disputam as mesmas linhas e uma fica
+    parada esperando a outra. Com ele, cada réplica pega um lote diferente e segue em frente.
+  </p>
+
+  <div class="code-block layer--infra">
+    <div class="code-head"><span class="layer-name">relay · poller</span><span class="file">infrastructure/outbox/outbox-relay.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">OutboxRelay</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> dataSource: <span class="ty">DataSource</span>,
+    <span class="k">private readonly</span> sns: <span class="ty">SnsPublisher</span>,
+  ) {}
+
+  <span class="de">@Interval</span>(<span class="nu">2000</span>)
+  <span class="k">async</span> <span class="fn">flush</span>(): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="k">await</span> <span class="k">this</span>.dataSource.<span class="fn">transaction</span>(<span class="k">async</span> (tx) =&gt; {
+      <span class="cm">// concorrência segura entre réplicas do relay</span>
+      <span class="k">const</span> batch = <span class="k">await</span> tx.<span class="fn">query</span>(
+        <span class="st">`SELECT * FROM outbox WHERE status = 'PENDING'
+         ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 100`</span>,
+      );
+
+      <span class="k">for</span> (<span class="k">const</span> row <span class="k">of</span> batch) {
+        <span class="k">await</span> <span class="k">this</span>.sns.<span class="fn">publish</span>(row.type, row.payload, { messageId: row.id });
+        <span class="k">await</span> tx.<span class="fn">update</span>(<span class="ty">OutboxModel</span>, row.id, { status: <span class="st">'PUBLISHED'</span> });
+      }
+    });
+  }
+}</code></pre>
+  </div>
+
+  <p>
+    Duas decisões pequenas aqui têm consequências grandes.
+  </p>
+
+  <p>
+    A primeira: <strong>nunca apague a linha antes do ACK do broker</strong>
+    <span class="gloss">(a confirmação de que ele recebeu)</span>. Marque como
+    <code>PUBLISHED</code> e deixe a limpeza para um job separado. Se você apagar antes, uma falha
+    na publicação vira perda de evento.
+  </p>
+
+  <p>
+    A segunda: se esperar dois segundos for demais para o seu caso, dá para usar
+    <code>LISTEN/NOTIFY</code> do Postgres, que avisa o relay assim que a linha é inserida. O poller
+    continua rodando como rede de segurança.
+  </p>
+
+  <h2>At-least-once <span class="gloss">(ao menos uma vez)</span> não é um defeito</h2>
+
+  <p class="gloss-lead">
+    A garantia de que toda mensagem vai ser entregue — em troca de aceitar que algumas cheguem
+    repetidas. O contrário de <em>at-most-once</em> <span class="gloss">(no máximo uma vez)</span>,
+    onde nada chega duplicado, mas alguma coisa pode se perder no caminho.
+  </p>
+
+  <p>
+    Essa é a parte que costuma incomodar quem implementa o padrão pela primeira vez. Se o relay
+    publica a mensagem e morre <em>antes</em> de marcar a linha como <code>PUBLISHED</code>, na
+    próxima rodada ele vai publicar de novo. O evento sai duas vezes.
+  </p>
+
+  <p>
+    A tentação é tentar consertar isso. Não vale a pena:
+    <strong>exactly-once <span class="gloss">(exatamente uma vez)</span> não é possível</strong>
+    nessa fronteira. Toda tentativa de simular isso acrescenta complexidade sem fechar a janela de falha.
+    O caminho que funciona é aceitar o <em>at-least-once</em> e passar a responsabilidade para o
+    outro lado: o consumidor precisa ser idempotente.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>Em fintech isso não é detalhe.</strong> A diferença entre processar uma mensagem uma vez
+      e processá-la duas é a diferença entre um pagamento e um pagamento em dobro. Idempotência não é
+      polimento — é requisito.
+    </p>
+  </div>
+
+  <h3>Camada 1 — dedupe na borda</h3>
+
+  <p>
+    A ideia é reservar o <code>messageId</code> de forma atômica. Se ele já estava reservado, a
+    mensagem é duplicata: não faça nada e dê o ACK.
+  </p>
+
+  <div class="code-block layer--pres">
+    <div class="code-head"><span class="layer-name">consumer idempotente</span><span class="file">use-cases/on-payment-created.consumer.ts</span></div>
+<pre><code><span class="de">@Injectable</span>()
+<span class="k">export class</span> <span class="ty">OnPaymentCreatedConsumer</span> {
+  <span class="k">constructor</span>(
+    <span class="k">private readonly</span> idempotency: <span class="ty">IdempotencyStore</span>,
+    <span class="k">private readonly</span> ledger: <span class="ty">PostEntryUseCase</span>,
+  ) {}
+
+  <span class="de">@SqsMessageHandler</span>(<span class="st">'ledger-queue'</span>)
+  <span class="k">async</span> <span class="fn">handle</span>(message: <span class="ty">SqsMessage</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+    <span class="k">const</span> { messageId, payload } = <span class="fn">parse</span>(message);
+
+    <span class="cm">// claim atômico. false = já visto → no-op</span>
+    <span class="k">const</span> firstTime = <span class="k">await</span> <span class="k">this</span>.idempotency.<span class="fn">claim</span>(messageId, { ttl: <span class="st">'24h'</span> });
+    <span class="k">if</span> (!firstTime) <span class="k">return</span>;
+
+    <span class="k">await</span> <span class="k">this</span>.ledger.<span class="fn">execute</span>({
+      paymentId: payload.aggregateId,
+      amount: payload.amountCents,
+    });
+  }
+}</code></pre>
+  </div>
+
+  <p>
+    Existem duas formas de implementar esse <code>claim</code>. Redis com <code>SETNX</code> e TTL é
+    rápido, mas é mais um sistema que pode cair — e o TTL pode expirar antes da hora. Uma tabela
+    <code>processed_messages</code> com <code>UNIQUE</code> em <code>message_id</code> é mais
+    segura, porque participa da <em>mesma transação</em> da escrita de negócio. Isso fecha uma
+    brecha que a versão com Redis deixa aberta.
+  </p>
+
+  <h3>Camada 2 — a operação em si é idempotente</h3>
+
+  <p>
+    O TTL expira, o Redis cai, a chave se perde. Por isso, vale escrever de um jeito que repetir não
+    cause estrago — mesmo que a camada 1 falhe:
+  </p>
+
+  <ul>
+    <li><strong>UPSERT por chave de negócio</strong> <span class="gloss">(insere ou atualiza, conforme já exista)</span>, em vez de INSERT cego.</li>
+    <li><strong>Transições condicionais</strong>: <code>UPDATE ... WHERE status = 'PENDING'</code> — um replay afeta zero linhas.</li>
+    <li><strong>Nunca</strong> <code>balance = balance + x</code> sem guarda. Registre uma entrada de ledger com o <code>messageId</code> e deixe a constraint rejeitar a duplicata.</li>
+  </ul>
+
+  <p>
+    A camada 1 é a otimização: resolve o caso comum de forma barata. A camada 2 é a garantia de que
+    está correto. Confiar só numa delas é contar com a sorte.
+  </p>
+
+  <h2>O outro lado: o <em>Inbox Pattern</em></h2>
+
+  <p class="gloss-lead">
+    <em>Inbox pattern</em> <span class="gloss">(caixa de entrada transacional)</span> — o mesmo
+    princípio do outbox, só que do lado de quem recebe: em vez de gravar o evento antes de publicar,
+    você grava a mensagem que chegou antes de processar.
+  </p>
+
+  <p>
+    Repare na simetria. No outbox, você grava no banco e <strong>depois</strong> publica. No inbox,
+    você recebe do broker, grava no banco e <strong>só então</strong> dá o ACK. Nos dois casos vale a
+    mesma regra: primeiro o que é durável, por último a conversa com o sistema externo. Se o ACK se
+    perder no caminho, o broker entrega de novo — e a duplicata esbarra na chave que já está gravada.
+  </p>
+
+  <p>
+    Aqui vale uma distinção que costuma passar batido: a tabela <code>processed_messages</code> da
+    camada 1 <strong>não é</strong> um inbox completo. Ela guarda só o <em>identificador</em>, para
+    conseguir descartar repetições. Um inbox de verdade guarda a <strong>mensagem inteira</strong> —
+    payload, tipo, metadados. É isso que permite fazer algo que a deduplicação sozinha não faz:
+    <strong>aceitar rápido agora e processar depois</strong>.
+  </p>
+
+  <div class="code-block layer--dom">
+    <div class="code-head"><span class="layer-name">inbox · tabela</span><span class="file">migrations/create-inbox.sql</span></div>
+<pre><code><span class="k">CREATE TABLE</span> inbox_messages (
+  id                <span class="ty">UUID</span> <span class="k">PRIMARY KEY</span>,        <span class="cm">-- = messageId; a PK é a idempotência</span>
+  type              <span class="ty">VARCHAR</span>(<span class="nu">255</span>) <span class="k">NOT NULL</span>,
+  payload           <span class="ty">JSONB</span> <span class="k">NOT NULL</span>,
+  received_at       <span class="ty">TIMESTAMPTZ</span> <span class="k">NOT NULL DEFAULT</span> <span class="fn">now</span>(),
+  processed_at      <span class="ty">TIMESTAMPTZ</span> <span class="k">NULL</span>,        <span class="cm">-- NULL = ainda não processada</span>
+  error             <span class="ty">TEXT</span> <span class="k">NULL</span>
+);
+
+<span class="cm">-- índice parcial: só as pendentes entram, então ele fica pequeno</span>
+<span class="k">CREATE INDEX</span> idx_inbox_pending
+  <span class="k">ON</span> inbox_messages (received_at)
+  <span class="k">WHERE</span> processed_at <span class="k">IS NULL</span>;</code></pre>
+  </div>
+
+  <p>
+    O consumidor faz o insert idempotente e a escrita de negócio na mesma transação, e só confirma o
+    broker depois do commit:
+  </p>
+
+  <div class="code-block layer--pres">
+    <div class="code-head"><span class="layer-name">consumer com inbox</span><span class="file">use-cases/on-payment-created.consumer.ts</span></div>
+<pre><code><span class="de">@SqsMessageHandler</span>(<span class="st">'ledger-queue'</span>)
+<span class="k">async</span> <span class="fn">handle</span>(message: <span class="ty">SqsMessage</span>): <span class="ty">Promise</span>&lt;<span class="ty">void</span>&gt; {
+  <span class="k">const</span> { messageId, type, payload } = <span class="fn">parse</span>(message);
+
+  <span class="k">await</span> <span class="k">this</span>.dataSource.<span class="fn">transaction</span>(<span class="k">async</span> (tx) =&gt; {
+    <span class="cm">// ON CONFLICT DO NOTHING → duplicata não gera efeito nenhum</span>
+    <span class="k">const</span> inserted = <span class="k">await</span> tx.<span class="fn">query</span>(
+      <span class="st">`INSERT INTO inbox_messages (id, type, payload)
+       VALUES ($1, $2, $3) ON CONFLICT (id) DO NOTHING RETURNING id`</span>,
+      [messageId, type, payload],
+    );
+    <span class="k">if</span> (inserted.length === <span class="nu">0</span>) <span class="k">return</span>;   <span class="cm">// já processada antes</span>
+
+    <span class="k">await</span> <span class="k">this</span>.ledger.<span class="fn">execute</span>(payload, tx);  <span class="cm">// mesma transação</span>
+  });
+
+  <span class="cm">// ACK só depois do commit. Crash aqui = reentrega, absorvida pelo insert acima.</span>
+}</code></pre>
+  </div>
+
+  <div class="callout">
+    <p>
+      <strong>A regra de ouro:</strong> confirme o broker <em>depois</em> do commit, nunca antes.
+      Se você desse o ACK primeiro e o processo caísse em seguida, a mensagem estaria perdida: o
+      broker já descartou e o banco nunca gravou. Fazendo o commit antes, o pior que acontece é a
+      mensagem chegar de novo.
+    </p>
+  </div>
+
+  <h3>Quando o inbox se paga</h3>
+
+  <p>
+    O inbox custa uma tabela, uma rotina de limpeza e, na versão assíncrona, mais um processo para
+    operar. Ele compensa quando:
+  </p>
+
+  <ul>
+    <li>o processamento é <strong>caro ou demorado</strong>, e segurar a mensagem na fila enquanto isso acontece é arriscado;</li>
+    <li>ele depende de terceiros instáveis — aceitar rápido e tentar de novo internamente absorve a indisponibilidade deles;</li>
+    <li>você precisa de um <strong>registro auditável</strong> do que chegou, não só do que foi aplicado.</li>
+  </ul>
+
+  <p>
+    Fora esses casos, a camada 1 (<code>processed_messages</code>) já resolve, e sai bem mais barato.
+    E se a operação já for <strong>idempotente por natureza</strong> — um UPSERT, ou gravar um valor
+    absoluto em vez de somar — provavelmente você não precisa de nenhum dos dois.
+  </p>
+
+  <div class="callout">
+    <p>
+      <strong>Um detalhe que morde:</strong> o tempo que você guarda os registros do inbox precisa
+      ser <em>maior</em> que a janela máxima de reentrega do broker. Se a limpeza roda a cada 24 h e
+      uma mensagem volta no terceiro dia, ela vai parecer nova e ser processada de novo. Pelo mesmo
+      motivo, a deduplicação do SQS FIFO não serve como substituta: a janela dela é de
+      <strong>5 minutos</strong>, e a própria AWS avisa que reenvios depois desse intervalo não são
+      detectados como duplicata.
+    </p>
+  </div>
+
+  <p>
+    Juntando as duas pontas: o <strong>outbox garante que a mensagem seja enviada pelo menos uma
+    vez</strong> e o <strong>inbox garante que ela seja processada exatamente uma vez</strong>. É
+    essa combinação que dá a troca confiável entre serviços — não uma promessa de
+    <em>exactly-once</em> no transporte, que ninguém consegue cumprir.
+  </p>
+
+  <h2>O que monitorar</h2>
+
+  <p>
+    A pior falha do outbox é silenciosa: o relay morre, as linhas se acumulam em
+    <code>PENDING</code> e tudo parece normal. As APIs respondem, o banco está saudável, não aparece
+    nenhum erro nos logs. Só que nenhum evento está saindo.
+  </p>
+
+  <p>
+    Por isso, <strong>monitore a idade da linha pendente mais antiga</strong>, não a quantidade de
+    linhas. Cem linhas pendentes criadas há dois segundos são operação normal; uma única linha
+    parada há quinze minutos é incidente.
+  </p>
+
+  <p>
+    Vale também criar um alarme para quando a DLQ
+    <span class="gloss">(<em>dead-letter queue</em>, a fila para onde vão as mensagens que falharam muitas vezes)</span>
+    tiver qualquer mensagem, e deixar escrito o plano de <em>redrive</em>
+    <span class="gloss">(reprocessar as mensagens da DLQ)</span> antes de precisar dele.
+  </p>
+
+  <h2>Quando não usar</h2>
+
+  <p>
+    O outbox tem um custo: uma tabela a mais, um processo a mais para operar e a exigência de que
+    todo consumidor seja idempotente. Como não é de graça, não saia aplicando por reflexo.
+  </p>
+
+  <ul>
+    <li>Se todas as escritas cabem em <strong>uma transação no mesmo banco</strong>, use uma transação e pronto. Não crie um problema distribuído onde não existe um.</li>
+    <li>Se a perda ocasional de um evento é tolerável (métrica, <em>analytics</em> <span class="gloss">— dados analíticos</span>, <em>cache warming</em> <span class="gloss">— pré-aquecimento de cache</span>), o custo provavelmente não se paga.</li>
+    <li>Se você já usa <strong>CDC</strong> <span class="gloss">(<em>change data capture</em>, captura de alterações do banco)</span> — o Debezium lendo o WAL <span class="gloss">(o log de escrita do Postgres)</span> —, dá para gerar os eventos direto do log de replicação. Você escreve menos código, mas opera mais infraestrutura. E tem um efeito colateral: os eventos passam a refletir o seu schema interno, que é exatamente o que o outbox evita ao publicar um contrato explícito.</li>
+  </ul>
+
+  <p>
+    Ele se paga onde perder um evento tem consequência contábil ou regulatória: pagamentos, emissão,
+    movimentação de saldo. Nesses casos, "o evento não saiu" deixa de ser um bug de sistema e vira
+    uma divergência que alguém vai ter que explicar.
+  </p>
+
+  <h2>Resumo</h2>
+
+  <ul>
+    <li>Não existe commit atômico entre banco e broker. Qualquer sequência de duas escritas tem uma janela de falha.</li>
+    <li>Grave o evento na <strong>mesma transação</strong> do estado. Publicar vira um passo separado, que pode ser repetido.</li>
+    <li><code>FOR UPDATE SKIP LOCKED</code> é o que permite rodar várias réplicas do relay ao mesmo tempo.</li>
+    <li>Marque como <code>PUBLISHED</code>. Nunca apague antes do ACK.</li>
+    <li>At-least-once é a garantia real que você tem. Idempotência no consumidor, em duas camadas, é obrigatória.</li>
+    <li>O <strong>inbox</strong> é o mesmo princípio do lado de quem recebe: grave a mensagem, depois dê o ACK. Outbox garante o envio pelo menos uma vez; inbox garante o processamento exatamente uma vez.</li>
+    <li>Monitore a <em>idade</em> da linha pendente mais antiga — aqui a falha é silenciosa.</li>
+  </ul>
+
+  <h2>Referências</h2>
+
+  <p>
+    O padrão é bem documentado. Se quiser ir além do que cobri aqui, estes são os melhores pontos de
+    partida:
+  </p>
+
+  <h3>Definição canônica</h3>
+  <ul>
+    <li>
+      <a href="https://microservices.io/patterns/data/transactional-outbox.html">Pattern: Transactional outbox</a>
+      — Chris Richardson, <em>microservices.io</em>. A formulação de referência do padrão, dentro do
+      catálogo de <em>transactional messaging</em>. É daqui que o nome vem.
+    </li>
+    <li>
+      <a href="https://microservices.io/patterns/data/transaction-log-tailing.html">Pattern: Transaction log tailing</a>
+      — o padrão irmão: em vez de um poller lendo a tabela, um processo lê o log de transações do banco.
+      É a base conceitual da abordagem via CDC.
+    </li>
+    <li>
+      <em>Microservices Patterns</em> (Chris Richardson, Manning) — capítulo 3 trata de mensageria
+      transacional com mais profundidade do que qualquer artigo online.
+    </li>
+  </ul>
+
+  <h3>Implementação e infraestrutura</h3>
+  <ul>
+    <li>
+      <a href="https://docs.aws.amazon.com/pt_br/prescriptive-guidance/latest/cloud-design-patterns/transactional-outbox.html">Padrão de caixa de saída transacional</a>
+      — AWS Prescriptive Guidance (em português). Traz os diagramas de sequência de cada modo de falha
+      e compara as duas abordagens: tabela de outbox com RDS versus CDC com DynamoDB Streams.
+      Código de exemplo em <a href="https://github.com/aws-samples/transactional-outbox-pattern">aws-samples/transactional-outbox-pattern</a>.
+    </li>
+    <li>
+      <a href="https://debezium.io/documentation/reference/stable/transformations/outbox-event-router.html">Outbox Event Router</a>
+      — documentação do Debezium. Se você for pelo caminho do CDC, é este SMT que transforma as linhas
+      da tabela em mensagens roteadas por agregado.
+    </li>
+    <li>
+      <a href="https://debezium.io/blog/2019/02/19/reliable-microservices-data-exchange-with-the-outbox-pattern/">Reliable Microservices Data Exchange with the Outbox Pattern</a>
+      — Gunnar Morling, blog do Debezium. O artigo que popularizou a combinação outbox + CDC.
+    </li>
+  </ul>
+
+  <h3>Garantias de entrega e idempotência</h3>
+  <ul>
+    <li>
+      <a href="https://event-driven.io/en/outbox_inbox_patterns_and_delivery_guarantees_explained/">Outbox, Inbox patterns and delivery guarantees explained</a>
+      — Oskar Dudycz. A fonte mais clara sobre o inbox como espelho do outbox, e sobre por que
+      <em>exactly-once</em> não é alcançável na entrega mas é no <em>processamento</em> — que é o
+      ponto das seções de idempotência e inbox deste post.
+    </li>
+    <li>
+      <a href="https://microservices.io/patterns/communication-style/idempotent-consumer.html">Pattern: Idempotent Consumer</a>
+      — Chris Richardson. A formalização do consumidor idempotente, incluindo a variante com tabela
+      de mensagens processadas e a de guardar o maior ID visto por agregado.
+    </li>
+    <li>
+      <a href="https://blog.jonathanoliver.com/idempotency-patterns/">Idempotency Patterns</a>
+      — Jonathan Oliver. O argumento de que, se a operação já é naturalmente idempotente, boa parte
+      dessa maquinaria é dispensável.
+    </li>
+    <li>
+      <a href="https://www.confluent.io/blog/dual-write-problem/">Understanding the Dual-Write Problem and Its Solutions</a>
+      — Confluent. Bom panorama do problema e das alternativas, com viés para Kafka.
+    </li>
+    <li>
+      <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/standard-queues.html">Amazon SQS standard queues</a>
+      e <a href="https://docs.aws.amazon.com/AWSSimpleQueueService/latest/SQSDeveloperGuide/sqs-fifo-queue-message-identifiers.html">FIFO queue and message identifiers</a>
+      — a documentação que define, na prática, as garantias com as quais você vai trabalhar:
+      <em>at-least-once</em> com possível reordenação nas filas padrão; ordenação e deduplicação
+      (com a janela de 5 minutos) nas FIFO.
+    </li>
+  </ul>
+
+  <h3>Padrões adjacentes</h3>
+  <ul>
+    <li>
+      <a href="https://docs.aws.amazon.com/pt_br/prescriptive-guidance/latest/cloud-design-patterns/saga-orchestration.html">Padrão de orquestração da saga</a>
+      — AWS Prescriptive Guidance. Quando a transação atravessa serviços, o outbox resolve a
+      publicação; a saga resolve a consistência.
+    </li>
+    <li>
+      <a href="https://martinfowler.com/articles/201701-event-driven.html">What do you mean by “Event-Driven”?</a>
+      — Martin Fowler. Útil para separar <em>event notification</em> de <em>event-carried state
+      transfer</em> — uma distinção que decide quanto dado vai no seu <code>payload</code>.
+    </li>
+    <li>
+      <a href="https://www.postgresql.org/docs/current/sql-select.html#SQL-FOR-UPDATE-SHARE">PostgreSQL: The Locking Clause</a>
+      — a documentação de <code>FOR UPDATE</code> / <code>SKIP LOCKED</code>, o mecanismo que
+      sustenta o relay concorrente.
+    </li>
+  </ul>
+
+  <footer>
+    Padrões relacionados: Saga (orquestrada e coreografada) · Pub/Sub com fan-out (distribuição em leque) SNS→SQS ·
+    Idempotência em duas camadas · DLQ e redrive<br>
+    Escrito a partir de implementações reais em NestJS + PostgreSQL + AWS.
+  </footer>
+
+</div>
+</body>
+</html>
