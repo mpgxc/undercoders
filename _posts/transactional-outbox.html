@@ -38,6 +38,10 @@ tags:
 
   * { box-sizing: border-box; }
 
+  /* Escala global da tipografia — todos os tamanhos são em rem, então
+     ajustar a raiz aumenta o texto proporcionalmente. */
+  html { font-size: 112.5%; }
+
   body {
     margin: 0;
     font-family: var(--font-sans);
@@ -50,7 +54,7 @@ tags:
     line-height: 1.6;
   }
 
-  .frame { width: 100%; max-width: 760px; }
+  .frame { width: 100%; max-width: 1120px; }
 
   /* ── Header ── */
   .eyebrow {
@@ -76,7 +80,7 @@ tags:
     font-size: 1.08rem;
     color: var(--color-muted);
     margin: 0 0 1.6rem;
-    max-width: 62ch;
+    max-width: 66ch;
   }
 
   .byline {
@@ -103,7 +107,7 @@ tags:
     letter-spacing: -0.005em;
     margin: 2.4rem 0 0.7rem;
   }
-  p { margin: 0 0 1.15rem; max-width: 68ch; }
+  p { margin: 0 0 1.15rem; max-width: 72ch; }
   a { color: var(--color-link); text-decoration: none; border-bottom: 1px solid rgba(46,90,168,0.3); }
   a:hover { border-bottom-color: var(--color-link); }
   strong { font-weight: 600; }
@@ -117,7 +121,7 @@ tags:
     padding: 0.1em 0.34em;
   }
 
-  ul, ol { margin: 0 0 1.15rem; padding-left: 1.2rem; max-width: 68ch; }
+  ul, ol { margin: 0 0 1.15rem; padding-left: 1.2rem; max-width: 72ch; }
   li { margin-bottom: 0.5rem; }
   li::marker { color: var(--color-soft); }
 

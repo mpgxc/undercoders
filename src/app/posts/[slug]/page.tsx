@@ -32,7 +32,7 @@ export default async function Post(props: Params) {
         <Container>
           <Header />
           <article className="mb-24">
-            <div className="mb-8 max-w-3xl">
+            <div className="mb-8 max-w-5xl">
               {post.draft && <DraftBadge className="mb-4" />}
               <h1 className="text-4xl md:text-6xl font-bold tracking-tighter leading-tight mb-4">
                 {post.title}
@@ -46,7 +46,7 @@ export default async function Post(props: Params) {
             </div>
           </article>
         </Container>
-        <div className="mx-auto max-w-6xl px-5 mb-16">
+        <div className="mx-auto max-w-7xl px-5 mb-16">
           <RichPostFrame html={post.content} title={post.title} />
         </div>
         <Container>
