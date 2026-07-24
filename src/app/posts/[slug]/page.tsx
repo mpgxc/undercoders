@@ -96,15 +96,30 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
     return notFound();
   }
 
+  const url = `/posts/${post.slug}`;
+
   return {
     // The root layout applies the `%s | Undercoders` template, so return the
     // bare post title here to avoid duplicating the site name.
     title: post.title,
     description: post.excerpt,
+    alternates: { canonical: url },
     openGraph: {
+      type: "article",
+      url,
       title: `${post.title} | ${SITE_NAME}`,
       description: post.excerpt,
-      images: [post.ogImage?.url ?? post.coverImage],
+      siteName: SITE_NAME,
+      locale: "pt_BR",
+      publishedTime: post.date,
+      authors: [post.author?.name].filter(Boolean) as string[],
+      tags: post.tags,
+      // A imagem vem de src/app/posts/[slug]/opengraph-image.tsx (PNG dinâmico).
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | ${SITE_NAME}`,
+      description: post.excerpt,
     },
   };
 }

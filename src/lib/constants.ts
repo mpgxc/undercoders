@@ -2,6 +2,22 @@ export const SITE_NAME = "Undercoders";
 
 export const SITE_TAGLINE = "Engenharia de software sem atalhos.";
 
+/**
+ * URL canônica do site (sem barra final). Usada para gerar URLs absolutas em
+ * Open Graph, sitemap, robots e RSS — essenciais para o link preview funcionar.
+ *
+ * Resolve automaticamente:
+ *   1. NEXT_PUBLIC_SITE_URL          (domínio custom, se você definir)
+ *   2. VERCEL_PROJECT_PRODUCTION_URL (domínio de produção da Vercel, no build)
+ *   3. http://localhost:3000         (fallback em dev)
+ */
+export const SITE_URL = (
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  (process.env.VERCEL_PROJECT_PRODUCTION_URL
+    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+    : "http://localhost:3000")
+).replace(/\/+$/, "");
+
 export const SITE_DESCRIPTION =
   "Blog sobre desenvolvimento de software, arquitetura de sistemas, padrões de projeto e inteligência artificial.";
 
@@ -15,8 +31,6 @@ export const SITE_TOPICS = [
 export const AUTHOR_NAME = "mpgxc";
 
 export const GITHUB_URL = "https://github.com/mpgxc/undercoders";
-
-export const HOME_OG_IMAGE_URL = "/assets/og-default.svg";
 
 /**
  * Configuração do Giscus (comentários via GitHub Discussions).

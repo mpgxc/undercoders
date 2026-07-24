@@ -1,9 +1,5 @@
 import Footer from "@/app/_components/footer";
-import {
-  HOME_OG_IMAGE_URL,
-  SITE_DESCRIPTION,
-  SITE_NAME,
-} from "@/lib/constants";
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/constants";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import cn from "classnames";
@@ -17,19 +13,31 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
-  ),
+  metadataBase: new URL(SITE_URL),
   title: {
     default: SITE_NAME,
     template: `%s | ${SITE_NAME}`,
   },
   description: SITE_DESCRIPTION,
+  alternates: {
+    canonical: "/",
+    types: {
+      "application/rss+xml": [{ url: "/feed.xml", title: `${SITE_NAME} — RSS` }],
+    },
+  },
   openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "/",
     title: SITE_NAME,
     description: SITE_DESCRIPTION,
     siteName: SITE_NAME,
-    images: [HOME_OG_IMAGE_URL],
+    // A imagem vem de src/app/opengraph-image.tsx (PNG dinâmico).
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_DESCRIPTION,
   },
 };
 
