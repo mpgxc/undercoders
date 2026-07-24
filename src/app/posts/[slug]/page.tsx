@@ -12,6 +12,7 @@ import { PostTags } from "@/app/_components/post-tags";
 import { DraftBadge } from "@/app/_components/draft-badge";
 import { RichPostFrame } from "@/app/_components/rich-post-frame";
 import { Comments } from "@/app/_components/comments";
+import CoverImage from "@/app/_components/cover-image";
 import DateFormatter from "@/app/_components/date-formatter";
 
 export default async function Post(props: Params) {
@@ -31,21 +32,23 @@ export default async function Post(props: Params) {
         <Alert preview={post.preview} />
         <Container>
           <Header />
-          <article className="mb-24">
-            <div className="mb-8 max-w-5xl">
-              {post.draft && <DraftBadge className="mb-4" />}
-              <h1 className="text-4xl md:text-6xl font-bold tracking-tighter leading-tight mb-4">
-                {post.title}
-              </h1>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-lg text-neutral-500 ">
-                <span>{post.author?.name}</span>
-                <span aria-hidden>·</span>
-                <DateFormatter dateString={post.date} />
-              </div>
-              <PostTags tags={post.tags} className="mt-5" />
+          <article className="mb-8 max-w-5xl">
+            {post.draft && <DraftBadge className="mb-4" />}
+            <h1 className="text-4xl md:text-6xl font-bold tracking-tighter leading-tight mb-4">
+              {post.title}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-lg text-neutral-500 ">
+              <span>{post.author?.name}</span>
+              <span aria-hidden>·</span>
+              <DateFormatter dateString={post.date} />
             </div>
+            <PostTags tags={post.tags} className="mt-5" />
           </article>
         </Container>
+        {/* Capa e artigo compartilham a mesma largura (max-w-7xl). */}
+        <div className="mx-auto max-w-7xl px-5 mb-6">
+          <CoverImage title={post.title} src={post.coverImage} />
+        </div>
         <div className="mx-auto max-w-7xl px-5 mb-16">
           <RichPostFrame html={post.content} title={post.title} />
         </div>
