@@ -59,9 +59,26 @@ export async function generateMetadata(props: Params): Promise<Metadata> {
     return {};
   }
 
+  const description = `Publicações sobre ${label} no ${SITE_NAME}.`;
+  const url = `/tags/${tag}`;
+
   return {
     title: label,
-    description: `Publicações sobre ${label} no ${SITE_NAME}.`,
+    description,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "website",
+      url,
+      title: `${label} | ${SITE_NAME}`,
+      description,
+      siteName: SITE_NAME,
+      locale: "pt_BR",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${label} | ${SITE_NAME}`,
+      description,
+    },
   };
 }
 

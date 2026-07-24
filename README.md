@@ -121,6 +121,27 @@ merge. Rode localmente antes de commitar:
 npm run validate:posts
 ```
 
+## SEO e compartilhamento (link preview)
+
+- **Open Graph / Twitter Cards**: cada página tem metadados completos. As
+  imagens de link preview são **PNGs 1200×630 gerados dinamicamente** com
+  `next/og` (`src/app/opengraph-image.tsx` e
+  `src/app/posts/[slug]/opengraph-image.tsx`) — redes sociais não renderizam
+  SVG, então o PNG garante que o preview apareça no WhatsApp, X, LinkedIn, Slack
+  etc. Novos posts ganham o cartão automaticamente.
+- **`sitemap.xml`**, **`robots.txt`** e **RSS** (`/feed.xml`) são gerados a
+  partir dos posts.
+
+### URL de produção
+
+Para que as URLs absolutas (OG, sitemap, RSS) apontem para o domínio certo,
+defina a URL do site. Na Vercel isso é **automático** (usa
+`VERCEL_PROJECT_PRODUCTION_URL`). Para um domínio custom, defina:
+
+```
+NEXT_PUBLIC_SITE_URL=https://seu-dominio.com
+```
+
 ## Comentários (Giscus)
 
 Cada post tem uma seção de comentários via
